@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>82-0 — Build an All-Time NBA Perfect Season</title>
+<meta name="description" content="Spin a real NBA team and season, draft your six, and simulate a full 82-game season. Chase the impossible: a perfect, unbeaten 82-0.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--court:#0c0f14;--panel:#141922;--panel-2:#1b2230;--line:#28303e;--ink:#eef1f5;--muted:#8b93a1;--dim:#5b6472;--led:#ffc24b;--action:#e8622c;--big:#3fb9a4;--win:#39d98a;--loss:#ef5470;--gold:#ffd76a;--radius:12px}
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--court);color:var(--ink);font-family:"Oswald",system-ui,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+  .mono{font-family:"IBM Plex Mono",monospace}
+
+  /* ---------- top nav ---------- */
+  nav.top{position:sticky;top:0;z-index:40;background:rgba(12,15,20,.82);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  nav.top .row{display:flex;align-items:center;justify-content:space-between;height:60px}
+  .navbrand{font-family:"Anton";font-size:24px;letter-spacing:.02em}
+  .navbrand .d{color:var(--action)}
+  .navbtn{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:8px;padding:9px 18px;font-family:"Oswald";font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:.08em;cursor:pointer}
+  .navbtn:hover{border-color:var(--action);color:var(--action)}
+
+  /* ---------- hero ---------- */
+  .hero{position:relative;overflow:hidden;border-bottom:1px solid var(--line);text-align:center;padding:56px 0 46px}
+  .hero .court-bg{position:absolute;inset:0;opacity:.5;pointer-events:none}
+  .hero .court-bg svg{width:100%;height:100%}
+  .hero-grad{position:absolute;inset:0;background:radial-gradient(120% 90% at 50% -10%, rgba(232,98,44,.16), transparent 55%),linear-gradient(180deg,#10161e 0%, var(--court) 78%);pointer-events:none}
+  .hero .inner{position:relative;z-index:2;max-width:560px;margin:0 auto}
+  .eyebrow{display:inline-flex;align-items:center;gap:7px;font-family:"IBM Plex Mono";font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--led);border:1px solid rgba(255,194,75,.35);background:rgba(255,194,75,.06);border-radius:999px;padding:5px 12px}
+  .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--led);box-shadow:0 0 8px var(--led)}
+  h1.big{font-family:"Anton";font-size:clamp(76px,17vw,150px);line-height:.86;margin:18px 0 4px;letter-spacing:.01em}
+  h1.big .d{color:var(--action)}
+  .hero h2{font-family:"Anton";font-weight:400;font-size:clamp(24px,5vw,34px);line-height:1.08;margin:6px auto 22px;max-width:9em}
+  .cta{display:block;width:100%;border:none;border-radius:10px;font-family:"Oswald";font-weight:700;font-size:17px;text-transform:uppercase;letter-spacing:.1em;padding:15px;cursor:pointer;margin-bottom:10px;transition:filter .15s}
+  .cta.primary{background:var(--action);color:#fff}.cta.primary:hover{filter:brightness(1.09)}
+  .cta.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}.cta.ghost:hover{border-color:var(--muted)}
+  .sect-lbl{font-family:"IBM Plex Mono";font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);text-align:left;margin:22px 0 8px}
+  .rowcard{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;cursor:pointer;transition:border-color .15s,transform .1s}
+  .rowcard:hover{border-color:var(--action);transform:translateY(-1px)}
+  .rowcard+.rowcard{margin-top:8px}
+  .rc-ico{flex:none;width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-size:19px;background:var(--panel-2);border:1px solid var(--line)}
+  .rc-body{flex:1;min-width:0}
+  .rc-t{font-weight:600;font-size:15px;display:flex;align-items:center;gap:8px}
+  .rc-d{font-size:12.5px;color:var(--muted);font-family:"IBM Plex Mono";line-height:1.45;margin-top:1px}
+  .rc-arrow{color:var(--dim);font-size:18px}
+  .tag{font-family:"IBM Plex Mono";font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--big);border:1px solid rgba(63,185,164,.4);border-radius:5px;padding:2px 6px}
+  .browsernote{margin:26px 0 6px;font-family:"IBM Plex Mono";font-size:12px;color:var(--muted)}
+  .browsernote b{color:var(--ink)}
+  .statsrow{display:flex;justify-content:center;gap:34px;margin-top:26px;flex-wrap:wrap}
+  .statsrow .s{text-align:center}
+  .statsrow .n{font-family:"Anton";font-size:26px}
+  .statsrow .l{font-family:"IBM Plex Mono";font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
+
+  /* ---------- generic section ---------- */
+  section{padding:60px 0;border-bottom:1px solid var(--line)}
+  h3.sec{font-family:"Anton";font-size:clamp(26px,4.5vw,34px);margin:0 0 26px}
+  h3.sec .accent{color:var(--action)}
+
+  /* how to play */
+  .steps{display:grid;gap:20px;max-width:640px}
+  .step{display:flex;gap:16px;align-items:flex-start}
+  .step .num{flex:none;width:30px;height:30px;border-radius:8px;background:var(--panel-2);border:1px solid var(--line);color:var(--led);font-family:"Anton";display:grid;place-items:center;font-size:16px}
+  .step .st{font-weight:600;font-size:16px}
+  .step .sd{color:var(--muted);font-size:14px;font-family:"IBM Plex Mono"}
+
+  /* challenges */
+  .chips{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .chip{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;font-size:14.5px;font-weight:500}
+  .chip .a{color:var(--action);font-family:"IBM Plex Mono";font-size:12px}
+  .chip:hover{border-color:var(--line);background:var(--panel-2)}
+
+  /* why-different band */
+  .band{background:linear-gradient(180deg,#111720,#0e131b);border:1px solid var(--line);border-radius:16px;padding:34px 30px}
+  .band h4{font-family:"Anton";font-size:clamp(22px,3.6vw,28px);margin:0 0 10px}
+  .band .lead{color:var(--muted);max-width:56ch;font-size:15px;font-family:"IBM Plex Mono";line-height:1.6}
+  .band .cols{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:26px}
+  .band .col .ct{font-family:"Oswald";font-weight:600;font-size:16px;color:var(--led);margin-bottom:5px}
+  .band .col .cd{font-size:13px;color:var(--muted);font-family:"IBM Plex Mono";line-height:1.55}
+
+  /* prose */
+  .prose p{color:var(--muted);max-width:66ch;margin:0 0 16px}
+  .prose p b{color:var(--ink)}
+  .prose strong{color:var(--ink)}
+
+  /* faq */
+  .faq{max-width:760px}
+  .qa{border-top:1px solid var(--line)}
+  .qa:last-child{border-bottom:1px solid var(--line)}
+  .qa button{width:100%;display:flex;justify-content:space-between;align-items:center;gap:16px;background:none;border:none;color:var(--ink);text-align:left;padding:20px 4px;font-family:"Oswald";font-weight:600;font-size:16px;cursor:pointer}
+  .qa .plus{color:var(--action);font-size:22px;flex:none;transition:transform .2s}
+  .qa.open .plus{transform:rotate(45deg)}
+  .qa .ans{max-height:0;overflow:hidden;transition:max-height .25s ease;color:var(--muted);font-family:"IBM Plex Mono";font-size:14px;line-height:1.6}
+  .qa .ans p{margin:0 4px 20px}
+
+  /* explore grid */
+  .explore{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .ex{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 18px;cursor:pointer}
+  .ex:hover{border-color:var(--action)}
+  .ex .t{font-weight:600;font-size:15px;color:var(--ink)}
+  .ex .t .ar{color:var(--action)}
+  .ex .d{font-size:12.5px;color:var(--muted);font-family:"IBM Plex Mono";margin-top:3px}
+
+  /* final cta */
+  .final{text-align:center;border-bottom:1px solid var(--line)}
+  .final h3{font-family:"Anton";font-size:clamp(26px,5vw,38px);max-width:14ch;margin:0 auto 14px}
+  .final p{color:var(--muted);max-width:52ch;margin:0 auto 26px;font-family:"IBM Plex Mono";font-size:14px}
+  .final .cta.primary{max-width:280px;margin:0 auto}
+
+  /* footer */
+  footer{padding:40px 0 60px;color:var(--dim)}
+  .fnav{display:flex;flex-wrap:wrap;gap:20px;justify-content:center;font-family:"Oswald";font-weight:500;font-size:14px;color:var(--muted)}
+  .fnav a:hover{color:var(--ink)}
+  .fsoc{display:flex;gap:14px;justify-content:center;margin:18px 0;font-family:"IBM Plex Mono";font-size:12px}
+  .fsoc a{border:1px solid var(--line);border-radius:8px;padding:7px 14px;color:var(--muted)}.fsoc a:hover{border-color:var(--muted);color:var(--ink)}
+  .fcopy{text-align:center;font-family:"IBM Plex Mono";font-size:11px;color:var(--dim);margin-top:10px}
+  .disc{text-align:center;font-family:"IBM Plex Mono";font-size:10.5px;color:#3d4553;max-width:70ch;margin:14px auto 0;line-height:1.6}
+
+  /* ---------- lobby modal ---------- */
+  .modal-bg{position:fixed;inset:0;background:rgba(6,9,13,.72);backdrop-filter:blur(4px);z-index:100;display:none;align-items:center;justify-content:center;padding:20px}
+  .modal-bg.on{display:flex}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:440px;width:100%;padding:24px}
+  .modal .mh{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px}
+  .modal .mt{font-family:"Anton";font-size:24px}
+  .modal .mx{background:none;border:none;color:var(--dim);font-size:24px;cursor:pointer;line-height:1}
+  .modal .msub{color:var(--muted);font-family:"IBM Plex Mono";font-size:12.5px;line-height:1.55;margin-bottom:18px}
+  .mtabs{display:flex;gap:6px;background:var(--court);border:1px solid var(--line);border-radius:9px;padding:4px;margin-bottom:18px}
+  .mtabs button{flex:1;background:none;border:none;color:var(--muted);font-family:"Oswald";font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.06em;padding:8px;border-radius:6px;cursor:pointer}
+  .mtabs button.on{background:var(--action);color:#fff}
+  .mrow{margin-bottom:14px}
+  .mrow label{display:block;font-family:"IBM Plex Mono";font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin-bottom:6px}
+  .mrow .grp{display:flex;gap:8px}
+  select,input.code{background:var(--court);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:11px 12px;font-family:"IBM Plex Mono";font-size:14px;width:100%}
+  .conftog{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .conftog button{flex:1;background:var(--court);border:none;color:var(--muted);font-family:"Oswald";font-weight:600;padding:10px;cursor:pointer;font-size:13px}
+  .conftog button.on{background:var(--panel-2);color:var(--led)}
+  .codebox{background:var(--court);border:1px dashed var(--action);border-radius:10px;padding:16px;text-align:center;margin:6px 0 14px}
+  .codebox .cl{font-family:"IBM Plex Mono";font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
+  .codebox .cv{font-family:"Anton";font-size:26px;letter-spacing:.14em;color:var(--led);word-break:break-all}
+  .mbtn{display:block;width:100%;text-align:center;background:var(--action);color:#fff;border:none;border-radius:9px;font-family:"Oswald";font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:15px;padding:13px;cursor:pointer;margin-top:6px}
+  .mbtn.sec{background:transparent;border:1px solid var(--line);color:var(--ink)}
+  .mnote{font-family:"IBM Plex Mono";font-size:11px;color:var(--dim);text-align:center;margin-top:12px;line-height:1.5}
+  .hidden{display:none}
+
+  @media(max-width:640px){
+    .chips,.explore{grid-template-columns:1fr}
+    .band .cols{grid-template-columns:1fr;gap:18px}
+    .band{padding:24px 18px}
+    section{padding:44px 0}
+  }
+</style>
+</head>
+<body>
+
+<nav class="top"><div class="wrap row">
+  <div class="navbrand">82<span class="d">·</span>0</div>
+  <a class="navbtn" href="nba-perfect-season.html">Play</a>
+</div></nav>
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="hero-grad"></div>
+  <div class="court-bg" aria-hidden="true">
+    <svg viewBox="0 0 1000 520" preserveAspectRatio="xMidYMin slice">
+      <g fill="none" stroke="#1c2531" stroke-width="1.4">
+        <rect x="1" y="1" width="998" height="518"/>
+        <line x1="500" y1="1" x2="500" y2="519"/>
+        <circle cx="500" cy="260" r="70"/>
+        <rect x="1" y="170" width="150" height="180"/><circle cx="151" cy="260" r="54"/>
+        <rect x="849" y="170" width="150" height="180"/><circle cx="849" cy="260" r="54"/>
+        <path d="M1 70 A 240 240 0 0 1 1 450" stroke="#232d3b"/>
+        <path d="M999 70 A 240 240 0 0 0 999 450" stroke="#232d3b"/>
+      </g>
+    </svg>
+  </div>
+  <div class="wrap"><div class="inner">
+    <span class="eyebrow"><span class="dot"></span>Unofficial fan draft game</span>
+    <h1 class="big">82<span class="d">–</span>0</h1>
+    <h2>Build an all-time NBA perfect season</h2>
+
+    <a class="cta primary" href="nba-perfect-season.html">Play 82-0 &rarr;</a>
+    <a class="cta ghost" href="#how">How it works</a>
+
+    <div class="sect-lbl">Play with friends</div>
+    <button class="rowcard" onclick="openLobby()">
+      <span class="rc-ico">🏀</span>
+      <span class="rc-body"><span class="rc-t">Multiplayer lobby</span><span class="rc-d">Same league, your roster vs theirs. Most wins takes it.</span></span>
+      <span class="rc-arrow">&rarr;</span>
+    </button>
+
+    <div class="sect-lbl">More ways to play</div>
+    <a class="rowcard" href="nba-perfect-season.html">
+      <span class="rc-ico">🏆</span>
+      <span class="rc-body"><span class="rc-t">One-franchise five</span><span class="rc-d">Build a single team's greatest unbeaten five from its own history.</span></span>
+      <span class="rc-arrow">&rarr;</span>
+    </a>
+    <div class="rowcard" style="cursor:default;opacity:.72">
+      <span class="rc-ico">📅</span>
+      <span class="rc-body"><span class="rc-t">Daily challenge <span class="tag">Soon</span></span><span class="rc-d">One team, one season, one shot — a fresh puzzle every day.</span></span>
+    </div>
+    <div class="rowcard" style="cursor:default;opacity:.72">
+      <span class="rc-ico">⚡</span>
+      <span class="rc-body"><span class="rc-t">Legends gauntlet <span class="tag">Soon</span></span><span class="rc-d">Draft a five and survive a tougher, deeper field.</span></span>
+    </div>
+
+    <div class="browsernote"><b>Free in your browser</b> — no download, no sign-up.</div>
+
+    <div class="statsrow">
+      <div class="s"><div class="n">30</div><div class="l">NBA franchises</div></div>
+      <div class="s"><div class="n">23</div><div class="l">championship squads</div></div>
+      <div class="s"><div class="n">1962–2026</div><div class="l">seasons</div></div>
+    </div>
+  </div></div>
+</header>
+
+<!-- ============ HOW TO PLAY ============ -->
+<section id="how"><div class="wrap">
+  <h3 class="sec">How to play</h3>
+  <div class="steps">
+    <div class="step"><div class="num">1</div><div><div class="st">Spin the wheel</div><div class="sd">Each spin lands on a real NBA team from a specific season.</div></div></div>
+    <div class="step"><div class="num">2</div><div><div class="st">Draft a player</div><div class="sd">Pick someone from that squad and choose where he plays on the floor.</div></div></div>
+    <div class="step"><div class="num">3</div><div><div class="st">Build your roster</div><div class="sd">Repeat until all five positions are filled — plus a sixth man off the bench.</div></div></div>
+    <div class="step"><div class="num">4</div><div><div class="st">Simulate the season</div><div class="sd">Play all 82 games and chase a perfect, unbeaten 82-0.</div></div></div>
+  </div>
+</div></section>
+
+<!-- ============ CHALLENGES ============ -->
+<section><div class="wrap">
+  <h3 class="sec">Popular challenges</h3>
+  <div class="chips">
+    <div class="chip"><span class="a">▸</span>Go 82-0 with an all-time five</div>
+    <div class="chip"><span class="a">▸</span>Win the championship</div>
+    <div class="chip"><span class="a">▸</span>Sweep the major awards</div>
+    <div class="chip"><span class="a">▸</span>Build a modern-era five (2016 onwards)</div>
+    <div class="chip"><span class="a">▸</span>Draft one legend from every decade</div>
+    <div class="chip"><span class="a">▸</span>Win with free positioning turned off</div>
+  </div>
+</div></section>
+
+<!-- ============ WHY DIFFERENT ============ -->
+<section><div class="wrap">
+  <div class="band">
+    <h4>A real simulation — not a coin flip.</h4>
+    <p class="lead">Most draft games decide who wins, then invent a scoreline to fit. 82-0 works the other way round: every game's result and its final score come from one sampled outcome, so the numbers always tell a consistent story.</p>
+    <div class="cols">
+      <div class="col"><div class="ct">A coherent league</div><div class="cd">All 31 teams play a full, balanced schedule. Your record is earned against a standings table that actually adds up.</div></div>
+      <div class="col"><div class="ct">One-sample scores</div><div class="cd">Win-or-lose and the final score come from the same draw — never forced to match after the fact.</div></div>
+      <div class="col"><div class="ct">The whole season</div><div class="cd">League-wide awards, a seeded playoff bracket and a Finals MVP — not just a win total.</div></div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ============ WHAT IS ============ -->
+<section><div class="wrap prose">
+  <h3 class="sec">What is 82-0?</h3>
+  <p><b>82-0</b> is a free basketball draft game and roster builder. You spin a wheel to land on a real NBA team and season, draft one player from that squad, and choose where he plays. Fill all six spots, then simulate a full 82-game season to see how far your lineup goes — and whether it can do the impossible and win every night.</p>
+  <p>Built by fans, 82-0 mixes eras. Drop a 1996 Bull next to a 2016 Warrior next to a 2025 Thunder pick, and find out how your cross-era roster actually holds up across a full season, a playoff run and the award race.</p>
+  <p>Unlike fantasy basketball, 82-0 isn't tied to live games or the current week. It's a nostalgia-and-history game: pit <strong>legends against modern superstars</strong>, chase a perfect season, and settle once and for all whose roster is really the strongest.</p>
+</div></section>
+
+<!-- ============ FAQ ============ -->
+<section><div class="wrap">
+  <h3 class="sec">Frequently asked questions</h3>
+  <div class="faq" id="faq">
+    <div class="qa"><button>What is 82-0?<span class="plus">+</span></button><div class="ans"><p>A free draft-and-simulate basketball game. You build a six-man roster from real NBA team-seasons, then play a full 82-game campaign and chase a perfect, unbeaten record.</p></div></div>
+    <div class="qa"><button>How do you play?<span class="plus">+</span></button><div class="ans"><p>Spin to land on a team and season, draft a player and choose his position, and repeat until your five spots plus a sixth man are full. Then simulate the season and see how far you get.</p></div></div>
+    <div class="qa"><button>Which players and teams are included?<span class="plus">+</span></button><div class="ans"><p>23 championship-calibre squads spanning 1962 to 2026, with a full 30-team backdrop league to compete against. You can mix any eras you like.</p></div></div>
+    <div class="qa"><button>Is 82-0 free?<span class="plus">+</span></button><div class="ans"><p>Yes — it runs free in your browser, with no download and no sign-up.</p></div></div>
+    <div class="qa"><button>Is this fantasy basketball?<span class="plus">+</span></button><div class="ans"><p>No. It isn't tied to live games or weekly scoring. It's a history-and-nostalgia game where you draft across eras and simulate a whole season at once.</p></div></div>
+    <div class="qa"><button>Is 82-0 affiliated with the NBA?<span class="plus">+</span></button><div class="ans"><p>No. It's an independent fan project, not affiliated with, endorsed by or sponsored by the NBA or NBPA. Team and player names and statistics are used as factual references only.</p></div></div>
+    <div class="qa"><button>Where do the ratings come from?<span class="plus">+</span></button><div class="ans"><p>Player stats are approximate factual references. Current-player overalls are informed by publicly listed NBA 2K ratings (2kratings.com) as a reference only.</p></div></div>
+    <div class="qa"><button>Why is it called 82-0?<span class="plus">+</span></button><div class="ans"><p>The NBA regular season is 82 games. 82-0 is the perfect, unbeaten season no team has ever had — the whole point is to try.</p></div></div>
+  </div>
+</div></section>
+
+<!-- ============ EXPLORE ============ -->
+<section><div class="wrap">
+  <h3 class="sec">Explore 82-0</h3>
+  <div class="explore">
+    <a class="ex" href="#how"><div class="t">Basketball draft game <span class="ar">&rarr;</span></div><div class="d">How the spin-and-draft format works.</div></a>
+    <a class="ex" href="nba-perfect-season.html"><div class="t">All-era roster builder <span class="ar">&rarr;</span></div><div class="d">Combine legends and modern stars into one lineup.</div></a>
+    <a class="ex" href="nba-perfect-season.html"><div class="t">Perfect-season simulator <span class="ar">&rarr;</span></div><div class="d">What happens when you play all 82 games.</div></a>
+    <div class="ex" onclick="openLobby()" style="cursor:pointer"><div class="t">Multiplayer lobby <span class="ar">&rarr;</span></div><div class="d">Play the exact same league as your friends.</div></div>
+    <a class="ex" href="#how"><div class="t">How to play <span class="ar">&rarr;</span></div><div class="d">A step-by-step guide to your first run.</div></a>
+  </div>
+</div></section>
+
+<!-- ============ FINAL CTA ============ -->
+<section class="final"><div class="wrap">
+  <h3>Can you build the perfect NBA season?</h3>
+  <p>Draft your six, simulate all 82 games, and see whether your team can do the impossible: 82 wins, zero losses.</p>
+  <a class="cta primary" href="nba-perfect-season.html">Play 82-0 &rarr;</a>
+</div></section>
+
+<!-- ============ FOOTER ============ -->
+<footer><div class="wrap">
+  <div class="fnav">
+    <a href="nba-perfect-season.html">Play</a>
+    <a href="#" onclick="openLobby();return false">Multiplayer</a>
+    <a href="#how">How to play</a>
+    <a href="#">Story</a>
+    <a href="#faq">FAQ</a>
+  </div>
+  <div class="fsoc">
+    <a href="#">✕ / Twitter</a>
+    <a href="#">Instagram</a>
+    <a href="#">Feedback</a>
+  </div>
+  <div class="fcopy">© 2026 82-0. A fan-made project.</div>
+  <div class="disc">82-0 is an independent, fan-made NBA draft and season simulator. It is not affiliated with, endorsed by, or sponsored by the NBA, the NBPA, or any team. Team names, player names and statistics are used for informational and editorial purposes only. No official logos, crests or player likenesses are used; all trademarks remain the property of their respective owners.</div>
+</div></footer>
+
+<!-- ============ LOBBY MODAL ============ -->
+<div class="modal-bg" id="lobbyBg">
+  <div class="modal">
+    <div class="mh"><div class="mt">Multiplayer lobby</div><button class="mx" onclick="closeLobby()">&times;</button></div>
+    <div class="msub">Everyone who enters the same code plays the <b style="color:var(--ink)">exact same league</b> — same schedule, same opponents. Draft your own roster, simulate, and compare records. Most wins takes it.</div>
+
+    <div class="mtabs"><button id="tabCreate" class="on" onclick="lobbyTab('create')">Create</button><button id="tabJoin" onclick="lobbyTab('join')">Join</button></div>
+
+    <!-- create -->
+    <div id="paneCreate">
+      <div class="mrow"><label>Era — which seasons can be spun</label>
+        <div class="grp"><select id="lbFrom"></select><select id="lbTo"></select></div></div>
+      <div class="mrow"><label>Conference</label>
+        <div class="conftog" id="lbConf"><button data-c="E">East</button><button data-c="W" class="on">West</button></div></div>
+      <button class="mbtn" onclick="makeLobby()">Create lobby</button>
+      <div id="createdWrap" class="hidden">
+        <div class="codebox" style="margin-top:16px"><div class="cl">Lobby code — share this</div><div class="cv" id="codeVal">—</div></div>
+        <button class="mbtn sec" onclick="copyCode()" id="copyBtn">Copy code</button>
+        <a class="mbtn" id="enterCreate" href="#">Enter lobby &rarr;</a>
+      </div>
+      <div class="mnote">A lobby code just encodes the league seed and settings — no server, no account. Anyone with the code plays your identical league.</div>
+    </div>
+
+    <!-- join -->
+    <div id="paneJoin" class="hidden">
+      <div class="mrow"><label>Lobby code</label><input class="code" id="joinCode" placeholder="e.g. 3F9A-2C0K-01W" autocomplete="off"></div>
+      <a class="mbtn" id="enterJoin" href="#" onclick="return joinLobby()">Enter lobby &rarr;</a>
+      <div class="mnote">Paste the code a friend shared to drop into their league.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- FAQ accordion ---------- */
+document.querySelectorAll('#faq .qa button').forEach(b=>{
+  b.onclick=()=>{const qa=b.parentElement;const open=qa.classList.contains('open');
+    qa.classList.toggle('open',!open);const ans=qa.querySelector('.ans');ans.style.maxHeight=open?null:ans.scrollHeight+'px';};
+});
+
+/* ---------- lobby code codec (must match the game) ---------- */
+const YBASE=1962, GAME_URL="nba-perfect-season.html";
+function encLobby(seed,from,to,conf){
+  const s=(seed>>>0).toString(36).padStart(7,'0');
+  const f=(from-YBASE).toString(36).padStart(2,'0');
+  const t=(to-YBASE).toString(36).padStart(2,'0');
+  return (s+f+t+(conf==='W'?'W':'E')).toUpperCase();
+}
+function groupCode(c){return c.replace(/(.{4})/g,'$1-').replace(/-$/,'');}
+
+/* ---------- populate era selects ---------- */
+(function(){const from=document.getElementById('lbFrom'),to=document.getElementById('lbTo');
+  for(let y=1962;y<=2026;y++){from.add(new Option(y,y));to.add(new Option(y,y));}
+  from.value=1962;to.value=2026;})();
+let lbConf='W';
+document.querySelectorAll('#lbConf button').forEach(b=>b.onclick=()=>{lbConf=b.dataset.c;document.querySelectorAll('#lbConf button').forEach(x=>x.classList.toggle('on',x===b));});
+
+/* ---------- modal controls ---------- */
+function openLobby(){document.getElementById('lobbyBg').classList.add('on');}
+function closeLobby(){document.getElementById('lobbyBg').classList.remove('on');}
+document.getElementById('lobbyBg').addEventListener('click',e=>{if(e.target.id==='lobbyBg')closeLobby();});
+function lobbyTab(t){
+  document.getElementById('tabCreate').classList.toggle('on',t==='create');
+  document.getElementById('tabJoin').classList.toggle('on',t==='join');
+  document.getElementById('paneCreate').classList.toggle('hidden',t!=='create');
+  document.getElementById('paneJoin').classList.toggle('hidden',t!=='join');
+}
+
+let rawCode='';
+function makeLobby(){
+  const from=+document.getElementById('lbFrom').value, to=+document.getElementById('lbTo').value;
+  const f=Math.min(from,to), t=Math.max(from,to);
+  const seed=(Math.floor(Math.random()*4294967295))>>>0;
+  rawCode=encLobby(seed,f,t,lbConf);
+  document.getElementById('codeVal').textContent=groupCode(rawCode);
+  document.getElementById('createdWrap').classList.remove('hidden');
+  document.getElementById('enterCreate').href=GAME_URL+'#L='+rawCode;
+}
+function copyCode(){navigator.clipboard&&navigator.clipboard.writeText(groupCode(rawCode));
+  const b=document.getElementById('copyBtn');b.textContent='Copied ✓';setTimeout(()=>b.textContent='Copy code',1400);}
+function joinLobby(){
+  const v=(document.getElementById('joinCode').value||'').toUpperCase().replace(/[^0-9A-Z]/g,'');
+  if(v.length<12){document.getElementById('joinCode').style.borderColor='var(--loss)';return false;}
+  window.location.href=GAME_URL+'#L='+v;return false;
+}
+</script>
+</body>
+</html>
