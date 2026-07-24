@@ -86,6 +86,24 @@
   .ch-nm{font-family:"Oswald";font-weight:600;font-size:14px;color:var(--ink)}
   .ch-rec{font-family:"IBM Plex Mono";font-weight:600;font-size:14px;color:var(--ink)}
   .ch-seed{font-family:"IBM Plex Mono";font-size:11px;color:var(--muted)}
+  .riv-modal{max-width:600px}
+  .riv-tag{font-family:"IBM Plex Mono";font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--action);text-align:center;margin-bottom:10px}
+  .riv-score{display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:6px}
+  .riv-team{text-align:center;padding:8px 16px;border-radius:10px;border:1px solid var(--line);min-width:130px}
+  .riv-team.win{border-color:var(--win);background:rgba(57,217,138,.08)}
+  .riv-nm{font-family:"Oswald";font-weight:600;font-size:14px;color:var(--ink)}
+  .riv-pts{font-family:"Anton";font-weight:400;font-size:30px;color:var(--led);line-height:1}
+  .riv-vs{font-family:"IBM Plex Mono";font-size:12px;color:var(--dim)}
+  .riv-clock{text-align:center;font-family:"IBM Plex Mono";font-size:12px;color:var(--muted);margin-bottom:10px}
+  .riv-feed{max-height:300px;overflow:auto;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-bottom:14px;padding:6px 4px}
+  .riv-play{align-items:center}
+  .riv-play .rp-l{display:flex;flex-direction:column;gap:1px;flex:1;text-align:left}
+  .rp-type{font-family:"IBM Plex Mono";font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim)}
+  .rp-desc{font-size:13px;color:var(--muted)}
+  .riv-play.me .rp-desc{color:var(--led)}
+  .rp-t{font-family:"IBM Plex Mono";font-size:10px;color:var(--dim);white-space:nowrap;margin:0 10px}
+  .rp-sc{font-family:"IBM Plex Mono";font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap;min-width:44px;text-align:right}
+  .riv-play.score{background:rgba(255,194,75,.05)}
   .lbm-bg{position:fixed;inset:0;background:rgba(6,9,13,.78);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:18px;z-index:60}
   .lbm{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:440px;width:100%;padding:22px;max-height:90vh;overflow:auto}
   .lbm-h{display:flex;justify-content:space-between;align-items:flex-start}
@@ -729,7 +747,7 @@ function animateSeason(onDone){const reduce=window.matchMedia&&matchMedia("(pref
   function step(){if(stopped)return;if(i>=games.length){finish();return;}const gm=games[i],won=gm.win;if(won)W++;else L++;
     $("#ar-gnum").textContent=gm.g;$("#ar-opp").textContent=(gm.home?"vs ":"@ ")+gm.opp;scoreEl.textContent=`${gm.mine}\u2013${gm.theirs}`;scoreEl.className="ar-score "+(won?"w":"l");void scoreEl.offsetWidth;scoreEl.classList.add("flash");
     stamp.textContent=won?"W":"L";stamp.className="arena-stamp "+(won?"w":"l");$("#ar-recW").textContent=W;$("#ar-recL").textContent=L;$("#ar-lead").innerHTML=`${shortName(gm.topS.n)} <b>${gm.sVal} PTS</b> &middot; ${shortName(gm.topA.n)} <b>${gm.aVal} AST</b>`;
-    const pip=document.createElement("span");pip.className="pip"+(won?"":" l");streak.appendChild(pip);$("#ar-barfill").style.width=((i+1)/games.length*100)+"%";i++;setTimeout(step,34);}
+    const pip=document.createElement("span");pip.className="pip"+(won?"":" l");streak.appendChild(pip);$("#ar-barfill").style.width=((i+1)/games.length*100)+"%";if(gm.vsLobby&&mpRoom){i++;playRivalry(gm,()=>{if(!stopped)step();});return;}i++;setTimeout(step,34);}
   step();
 }
 function afterRegular(){activeResTab="log";renderResults();}
@@ -897,7 +915,7 @@ function simulateLeagueMP(seed,lobbyTeams){
   for(let i=sched.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[sched[i],sched[j]]=[sched[j],sched[i]];}
   const me=lobbyTeams.find(t=>t.isYou),yourGames=[];
   sched.forEach(([h,aw])=>{const res=sampleGeneric(h.rating,aw.rating,true,g);if(res.win){h.wins++;aw.losses++;}else{h.losses++;aw.wins++;}
-    if(me&&(h===me||aw===me)){const home=h===me,mine=home?res.a:res.b,theirs=home?res.b:res.a,opp=home?aw:h,win=home?res.win:!res.win;yourGames.push({opp:opp.name,oppR:opp.rating,home,win,mine,theirs});}});
+    if(me&&(h===me||aw===me)){const home=h===me,mine=home?res.a:res.b,theirs=home?res.b:res.a,opp=home?aw:h,win=home?res.win:!res.win;yourGames.push({opp:opp.name,oppR:opp.rating,home,win,mine,theirs,vsLobby:!!opp.lobby,vsUid:opp.uid||null});}});
   const order=["PG","SG","SF","PF","C","6"];
   const pool=me?me.six.slice().sort((a,b)=>order.indexOf(a.slot)-order.indexOf(b.slot)).map(e=>({n:e.n,pos:e.pos,ppg:e.ppg,rpg:e.rpg,apg:e.apg,imp:e.imp,tm:e.tm,yr:e.yr})):order.map(k=>roster[k]);
   const sixth=pool[5],tot=pool.map(()=>({pts:0,reb:0,ast:0}));
@@ -931,6 +949,51 @@ function mpOnRoom(room){if(!room)return;mpRoomData=room;const st=(room.settings|
   if(st==="started"&&screen==="lobby"&&!mpStarted){mpStarted=true;startDraft();}
   if(st==="running"&&!mpRan)tryRunMP(room);
   if(screen==="lobby")renderLobbyScreen(room);else if(screen==="draft")mpUpdateDraftUI(room);
+}
+
+/* ---- Head-to-head rivalry play-by-play (lobby opponents only) ---- */
+function fmtClock(sec){sec=Math.max(0,sec);return Math.floor(sec/60)+":"+String(sec%60).padStart(2,"0");}
+function rivDesc(who,val,rng,mates){if(val===1)return who+" makes free throw";const s2=["driving layup","8-foot floater","turnaround jumper","step-back jumper","cutting dunk","putback layup","fadeaway jumper","mid-range pull-up"],s3=["26-foot three","corner three","step-back three","pull-up three","transition three"];let d=who+" makes "+(val===3?s3[Math.floor(rng()*s3.length)]:s2[Math.floor(rng()*s2.length)]);if(rng()<0.4&&mates.length>1){let a=mates[Math.floor(rng()*mates.length)],guard=0;while(a===who&&guard++<5)a=mates[Math.floor(rng()*mates.length)];if(a!==who)d+=" ("+a+" assists)";}return d;}
+function rivFlavor(type,nm,other){return type==="Block"?(nm+" blocks "+other):type==="Rebound"?(nm+" rebound"):type==="Steal"?(nm+" steal"):type==="Turnover"?(nm+" turnover"):(nm+" personal foul");}
+function buildRivalryFeed(gm){
+  const order=["PG","SG","SF","PF","C","6"];
+  const me=mpLobbyTeams.find(t=>t.isYou)||{name:"You",six:[]};
+  const opp=mpLobbyTeams.find(t=>t.uid===gm.vsUid)||{name:gm.opp,six:[]};
+  const meP=me.six.slice().sort((a,b)=>order.indexOf(a.slot)-order.indexOf(b.slot)).map(e=>e.n);
+  let opP=(opp.six||[]).slice().sort((a,b)=>order.indexOf(a.slot)-order.indexOf(b.slot)).map(e=>e.n);if(!opP.length)opP=[opp.name];
+  const key=[me.name,opp.name].sort();
+  const base=hashSeed(runSeed,"h2h",key[0],key[1],Math.max(gm.mine,gm.theirs),Math.min(gm.mine,gm.theirs));
+  const rng=mulberry32(base),g=gaussFrom(mulberry32(base^0x5bd1e995));
+  const meBox=gm.box?gm.box.pts.slice():makeBox(me.six,me.six[5],gm.mine,gaussFrom(mulberry32(base^7))).pts;
+  const opBox=makeBox((opp.six&&opp.six.length)?opp.six:me.six,(opp.six&&opp.six[5])||me.six[5],gm.theirs,gaussFrom(mulberry32(base^13))).pts;
+  function splitQ(total){let q=[0,0,0,0],s=0;for(let i=0;i<4;i++){q[i]=Math.max(8,g(total/4,4));s+=q[i];}q=q.map(x=>Math.round(x*total/s));q[3]+=total-q.reduce((a,b)=>a+b,0);return q;}
+  const mq=splitQ(gm.mine),tq=splitQ(gm.theirs);
+  function baskets(total,names,box){const ev=[];let rem=total,guard=0;const ws=box.reduce((a,b)=>a+Math.max(0,b),0)||1;while(rem>0&&guard++<300){let val=rem>=3&&rng()<0.36?3:(rem>=2?2:1);if(rem<2)val=1;let x=rng()*ws,idx=0;for(let i=0;i<box.length;i++){x-=Math.max(0,box[i]);if(x<=0){idx=i;break;}}ev.push({who:names[Math.min(idx,names.length-1)],val});rem-=val;}return ev;}
+  const flavor=["Rebound","Steal","Turnover","Block","Foul"],feed=[];let sm=0,st=0;
+  for(let q=0;q<4;q++){
+    const mev=baskets(mq[q],meP,meBox),tev=baskets(tq[q],opP,opBox),seq=[];let mi=0,ti=0;
+    while(mi<mev.length||ti<tev.length){const pm=(ti>=tev.length)||(mi<mev.length&&rng()<0.5);seq.push(pm?{side:"me",ev:mev[mi++]}:{side:"opp",ev:tev[ti++]});}
+    let clock=12*60;
+    seq.forEach(s=>{
+      if(rng()<0.32){const ft=flavor[Math.floor(rng()*flavor.length)],fs=rng()<0.5?"me":"opp",A=fs==="me"?meP:opP,B=fs==="me"?opP:meP;clock=Math.max(0,clock-Math.round(5+rng()*20));feed.push({q:q+1,time:fmtClock(clock),type:ft,desc:rivFlavor(ft,A[Math.floor(rng()*A.length)],B[Math.floor(rng()*B.length)]),side:fs,sm,st});}
+      clock=Math.max(0,clock-Math.round(8+rng()*22));if(s.side==="me")sm+=s.ev.val;else st+=s.ev.val;
+      const val=s.ev.val,type=val===3?"3-pointer":val===1?"Free Throw":"Made Shot";
+      feed.push({q:q+1,time:fmtClock(clock),type,desc:rivDesc(s.ev.who,val,rng,s.side==="me"?meP:opP),side:s.side,val,sm,st,score:true});
+    });
+    feed.push({q:q+1,type:"__end__",endM:sm,endT:st});
+  }
+  return {feed,meName:me.name,oppName:opp.name,mine:gm.mine,theirs:gm.theirs,win:gm.win};
+}
+function playRivalry(gm,done){
+  const root=$("#modalRoot");if(!root||!mpLobbyTeams){done();return;}
+  const R=buildRivalryFeed(gm),meWin=gm.win;
+  root.innerHTML=`<div class="lbm-bg" id="rivBg"><div class="lbm riv-modal"><div class="riv-tag">\u2694\ufe0f Head-to-head \u2014 lobby rival</div><div class="riv-score"><div class="riv-team me"><div class="riv-nm">${mpEsc(R.meName)} <span class="mp-youtag">you</span></div><div class="riv-pts" id="rivM">0</div></div><div class="riv-vs">vs</div><div class="riv-team" id="rivTteam"><div class="riv-nm">${mpEsc(R.oppName)}</div><div class="riv-pts" id="rivT">0</div></div></div><div class="riv-clock" id="rivClock">Tip-off</div><div class="feed riv-feed" id="rivFeed"></div><button class="lbm-btn sec" id="rivSkip">Skip to result \u2192</button></div></div>`;
+  const feedEl=$("#rivFeed"),mEl=$("#rivM"),tEl=$("#rivT"),clockEl=$("#rivClock");let i=0,stopped=false;
+  function finalize(){stopped=true;mEl.textContent=gm.mine;tEl.textContent=gm.theirs;$(".riv-team.me").classList.toggle("win",meWin);$("#rivTteam").classList.toggle("win",!meWin);clockEl.innerHTML=`Final \u2014 <b style="color:${meWin?'var(--win)':'var(--loss)'}">${meWin?"You win":"You lose"} ${gm.mine}\u2013${gm.theirs}</b>`;const b=$("#rivSkip");b.textContent="Continue season \u2192";b.classList.remove("sec");b.onclick=()=>{root.innerHTML="";done();};}
+  function row(p){if(p.type==="__end__"){const d=document.createElement("div");d.className="fq";d.textContent=`End of Q${p.q} \u2014 ${p.endM}\u2013${p.endT}`;feedEl.appendChild(d);return;}const d=document.createElement("div");d.className="play riv-play "+(p.side==="me"?"me":"opp")+(p.score?" score":"");d.innerHTML=`<span class="rp-l"><span class="rp-type">${p.type}</span><span class="rp-desc">${mpEsc(p.desc)}</span></span><span class="rp-t">${p.time} \u00b7 Q${p.q}</span>${p.score?`<span class="rp-sc">${p.sm}\u2013${p.st}</span>`:'<span class="rp-sc"></span>'}`;feedEl.appendChild(d);if(p.score){mEl.textContent=p.sm;tEl.textContent=p.st;}clockEl.textContent="Q"+p.q+"  "+p.time;}
+  function step(){if(stopped)return;if(i>=R.feed.length){finalize();return;}row(R.feed[i++]);feedEl.scrollTop=feedEl.scrollHeight;setTimeout(step,55);}
+  $("#rivSkip").onclick=()=>{if(stopped){root.innerHTML="";done();return;}while(i<R.feed.length)row(R.feed[i++]);feedEl.scrollTop=feedEl.scrollHeight;finalize();};
+  step();
 }
 
 /* ============================================================ WIRE UP ============================================================ */
