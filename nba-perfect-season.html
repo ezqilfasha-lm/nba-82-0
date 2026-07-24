@@ -75,6 +75,17 @@
   #mpStart:disabled{opacity:.45;cursor:not-allowed}
   .mp-note{font-family:"IBM Plex Mono";font-size:12px;color:var(--muted);text-align:center;padding:10px 0}
   .mp-leave{display:block;margin:14px auto 0;background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:8px;font-family:"IBM Plex Mono";font-size:11px;padding:8px 14px;cursor:pointer}.mp-leave:hover{border-color:var(--loss);color:var(--loss)}
+  .ch-modal{text-align:center}
+  .ch-crown{font-family:"Anton";font-weight:400;font-size:26px;color:var(--gold);letter-spacing:.3px;margin-bottom:4px}
+  .ch-sub{font-family:"IBM Plex Mono";font-size:12px;color:var(--muted);margin-bottom:16px}
+  .ch-list{display:flex;flex-direction:column;gap:7px;margin-bottom:16px}
+  .ch-row{display:grid;grid-template-columns:34px 1fr auto auto;align-items:center;gap:10px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:9px 12px;text-align:left}
+  .ch-row.champ{border-color:var(--gold)}
+  .ch-row.me{background:rgba(232,98,44,.12)}
+  .ch-rank{font-family:"Anton";font-weight:400;font-size:15px;color:var(--muted);text-align:center}
+  .ch-nm{font-family:"Oswald";font-weight:600;font-size:14px;color:var(--ink)}
+  .ch-rec{font-family:"IBM Plex Mono";font-weight:600;font-size:14px;color:var(--ink)}
+  .ch-seed{font-family:"IBM Plex Mono";font-size:11px;color:var(--muted)}
   .lbm-bg{position:fixed;inset:0;background:rgba(6,9,13,.78);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:18px;z-index:60}
   .lbm{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:440px;width:100%;padding:22px;max-height:90vh;overflow:auto}
   .lbm-h{display:flex;justify-content:space-between;align-items:flex-start}
@@ -643,7 +654,9 @@ function renderCourt(){
     if(movableTargets("6").length)bench.querySelector(".mv").onclick=()=>{movingSlot=movingSlot==="6"?null:"6";renderCourt();renderMovebar();};}
   else bench.innerHTML=`<span class="bl">6TH</span><div class="who"><div class="empty">Sixth man — any position</div></div>`;
   renderMovebar();
-  const btn=$("#sim");btn.disabled=!rosterFull();btn.textContent=rosterFull()?(phase==="draft"?"Simulate the season":"Re-simulate season"):`Fill all 6 to simulate (${Object.values(roster).filter(Boolean).length}/6)`;
+  const btn=$("#sim");
+  if(mpRoom){if(rosterFull()&&!mpPublished){mpPublished=true;mpPublishRoster();}mpUpdateDraftUI(mpRoomData);}
+  else{btn.disabled=!rosterFull();btn.textContent=rosterFull()?(phase==="draft"?"Simulate the season":"Re-simulate season"):`Fill all 6 to simulate (${Object.values(roster).filter(Boolean).length}/6)`;}
   $("#rrCount").textContent=rerollsLeft;
 }
 function renderMovebar(){const host=$("#movebarHost");if(!movingSlot||!roster[movingSlot]){host.innerHTML="";return;}const p=roster[movingSlot];const targets=movableTargets(movingSlot);
@@ -836,7 +849,7 @@ function renderFeed(pbp,leftPts,rightPts,mode){const feed=$("#pbpFeed"),L=$("#pb
 
 /* ================= MULTIPLAYER — Firebase live lobby (Phase 1: waiting room) ================= */
 const FIREBASE_CONFIG={apiKey:"AIzaSyA5dhTBzxjjt_Hozfoto50nsOAmhaIZk48",authDomain:"project-82-0.firebaseapp.com",databaseURL:"https://project-82-0-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"project-82-0",storageBucket:"project-82-0.firebasestorage.app",messagingSenderId:"1084377339040",appId:"1:1084377339040:web:f98bea8a2eff042218e5c5",measurementId:"G-WXVD3XZK24"};
-let mpOn=false,mpAuth=null,mpDb=null,mpUid=null,mpRoom=null,mpCode=null,mpJoined=false,mpStarted=false,mpIsHost=false;
+let mpOn=false,mpAuth=null,mpDb=null,mpUid=null,mpRoom=null,mpCode=null,mpJoined=false,mpStarted=false,mpIsHost=false,mpRoomData=null,mpPublished=false,mpRan=false,mpLobbyTeams=null;
 function mpEsc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function mpInit(){if(mpOn)return true;if(typeof firebase==="undefined"||!firebase.initializeApp)return false;try{if(!(firebase.apps&&firebase.apps.length))firebase.initializeApp(FIREBASE_CONFIG);mpAuth=firebase.auth();mpDb=firebase.database();mpOn=true;return true;}catch(e){console.warn("Firebase unavailable",e);return false;}}
 function mpHeader(l){const c=$("#mpCodeShow");if(c)c.textContent=groupCode(l.code);const s=$("#mpSettings");if(s)s.innerHTML=`Era ${l.from}\u2013${l.to} \u00b7 ${l.conf==="E"?"Eastern":"Western"} Conference \u00b7 everyone plays the identical league`;const lv=$("#mpLeave");if(lv)lv.onclick=mpLeave;}
@@ -847,7 +860,7 @@ function mpJoin(l){mpCode=l.code;
       const meRef=mpRoom.child("players/"+mpUid);
       meRef.update({name:(window._lbName||"Player"),ready:false,joinedAt:Date.now()}).catch(()=>{});
       meRef.onDisconnect().remove();
-      mpRoom.on("value",snap=>renderLobbyScreen(snap.val()));
+      mpRoom.on("value",snap=>mpOnRoom(snap.val()));
     }).catch(()=>renderLobbyScreen(null,"Couldn't reach the lobby \u2014 check your connection, or tap Leave to play solo."));
   });
   mpAuth.signInAnonymously().catch(()=>renderLobbyScreen(null,"Sign-in failed \u2014 check your connection, or tap Leave to play solo."));
@@ -858,7 +871,6 @@ function renderLobbyScreen(room,note){const body=$("#lobbyBody");if(!body)return
   mpIsHost=(settings.hostId===mpUid);
   const ids=Object.keys(players).sort((a,b)=>(players[a].joinedAt||0)-(players[b].joinedAt||0));
   const allReady=ids.length>0&&ids.every(id=>players[id].ready);
-  if(settings.status==="started"&&!mpStarted){mpStarted=true;startDraft();return;}
   const me=players[mpUid]||{};
   const list=ids.map(id=>{const p=players[id],you=id===mpUid,host=id===settings.hostId;
     return `<div class="mp-p${you?" me":""}"><span class="mp-nm">${mpEsc(p.name||"Player")}${host?' <span class="mp-hosttag">host</span>':""}${you?' <span class="mp-youtag">you</span>':""}</span><span class="mp-rd ${p.ready?"on":""}">${p.ready?"Ready":"Not ready"}</span></div>`;}).join("");
@@ -872,8 +884,57 @@ function renderLobbyScreen(room,note){const body=$("#lobbyBody");if(!body)return
 }
 function mpLeave(){try{if(mpRoom){mpRoom.off();mpRoom.child("players/"+mpUid).remove();}}catch(e){}mpRoom=null;mpJoined=false;mpStarted=false;leaveLobby();showScreen("setup");}
 
+/* ---- Phase 2: shared league — lobby teams become extension franchises ---- */
+function mpRosterArr(r){if(!r)return [];const a=Array.isArray(r)?r.slice():Object.keys(r).sort((x,y)=>x-y).map(k=>r[k]);const ord=["PG","SG","SF","PF","C","6"];return a.slice().sort((p,q)=>ord.indexOf(p.slot)-ord.indexOf(q.slot));}
+function mpPublishRoster(){if(!mpRoom||!mpUid||!rosterFull())return;const order=["PG","SG","SF","PF","C","6"];const r=order.map(k=>{const p=roster[k];return {slot:k,n:p.n,pos:p.pos,ppg:p.ppg,rpg:p.rpg,apg:p.apg,imp:p.imp};});mpRoom.child("players/"+mpUid).update({roster:r,drafted:true}).catch(()=>{});}
+function buildLobbyUnit(six,name,conf,uid,isYou){let oN=0,oD=0,dN=0,dD=0,apgW=0,rpgW=0,wsum=0;six.forEach(e=>{const w=e.slot==="6"?0.5:1;const pos=e.slot==="6"?(e.pos||"SF"):e.slot;const ow=OFFW[pos]*w,dw=DEFW[pos]*w;oN+=offI(e)*ow;oD+=ow;dN+=defI(e)*dw;dD+=dw;apgW+=(e.apg||0)*w;rpgW+=(e.rpg||0)*w;wsum+=w;});const O=oN/oD,D=dN/dD;return {name:name||"Player",conf,isYou,uid,lobby:true,O,D,prof:{O,D,apg:apgW/wsum,rpg:rpgW/wsum},six,rating:(O+D)/2,wins:0,losses:0,gp:0};}
+function simulateLeagueMP(seed,lobbyTeams){
+  const teams=NBA_TEAMS.map(t=>({name:t.name,conf:t.conf,rating:t.rating,O:t.rating,D:t.rating,isYou:false,lobby:false,wins:0,losses:0,gp:0})).concat(lobbyTeams);
+  const rng=mulberry32(seed),g=gaussFrom(rng);const sched=[];
+  for(let i=0;i<teams.length;i++)for(let j=i+1;j<teams.length;j++){sched.push([teams[i],teams[j]]);sched.push([teams[j],teams[i]]);teams[i].gp+=2;teams[j].gp+=2;}
+  const n=teams.length,extra=Math.round((82-2*(n-1))/2);
+  if(extra>0)for(let i=0;i<n;i++)for(let d=1;d<=extra;d++){const j=(i+d)%n;sched.push([teams[i],teams[j]]);teams[i].gp++;teams[j].gp++;}
+  for(let i=sched.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[sched[i],sched[j]]=[sched[j],sched[i]];}
+  const me=lobbyTeams.find(t=>t.isYou),yourGames=[];
+  sched.forEach(([h,aw])=>{const res=sampleGeneric(h.rating,aw.rating,true,g);if(res.win){h.wins++;aw.losses++;}else{h.losses++;aw.wins++;}
+    if(me&&(h===me||aw===me)){const home=h===me,mine=home?res.a:res.b,theirs=home?res.b:res.a,opp=home?aw:h,win=home?res.win:!res.win;yourGames.push({opp:opp.name,oppR:opp.rating,home,win,mine,theirs});}});
+  const order=["PG","SG","SF","PF","C","6"];
+  const pool=me?me.six.slice().sort((a,b)=>order.indexOf(a.slot)-order.indexOf(b.slot)).map(e=>({n:e.n,pos:e.pos,ppg:e.ppg,rpg:e.rpg,apg:e.apg,imp:e.imp})):order.map(k=>roster[k]);
+  const sixth=pool[5],tot=pool.map(()=>({pts:0,reb:0,ast:0}));
+  yourGames.forEach((gm,i)=>{gm.g=i+1;const gg=gaussFrom(mulberry32(hashSeed(seed,"box",i)));const box=makeBox(pool,sixth,gm.mine,gg);gm.box=box;pool.forEach((pl,j)=>{tot[j].pts+=box.pts[j];tot[j].reb+=box.reb[j];tot[j].ast+=box.ast[j];});let sM=-1,sI=0,aM=-1,aI=0;box.pts.forEach((v,j)=>{if(v>sM){sM=v;sI=j;}});box.ast.forEach((v,j)=>{if(v>aM){aM=v;aI=j;}});gm.topS=pool[sI];gm.sVal=sM;gm.topA=pool[aI];gm.aVal=aM;});
+  const W=yourGames.filter(x=>x.win).length,L=yourGames.length-W;
+  const confs={E:[],W:[]};teams.forEach(t=>confs[t.conf].push(t));
+  for(const c of ["E","W"]){confs[c].sort((a,b)=>b.wins-a.wins||b.rating-a.rating);confs[c].forEach((t,i)=>{t.seed=i+1;});}
+  const gp=yourGames.length||1;
+  const playerStats=pool.map((pl,j)=>({p:pl,ppg:tot[j].pts/gp,rpg:tot[j].reb/gp,apg:tot[j].ast/gp,pts:tot[j].pts}));
+  const league=playerStats.map(s=>({n:s.p.n,pos:s.p.pos,team:me?me.name:"Your Legends",tw:W,ppg:s.ppg,rpg:s.rpg,apg:s.apg,imp:s.p.imp,isYou:true}));
+  teams.filter(t=>!t.lobby).forEach(t=>{const b=BACKDROP_STARS[t.name];if(!b)return;const r=mulberry32(hashSeed(seed,"star",t.name)),gg=gaussFrom(r);const form=0.88+(t.rating-LG_MEAN)/55;league.push({n:b.n,pos:b.pos,team:t.name,tw:t.wins,ppg:Math.max(4,b.ppg*form*gg(1,0.06)),rpg:Math.max(1,b.rpg*(0.92+form*0.1)*gg(1,0.08)),apg:Math.max(0.5,b.apg*form*gg(1,0.08)),imp:b.imp,isYou:false});});
+  const pf=yourGames.reduce((a,x)=>a+x.mine,0)/gp,pa=yourGames.reduce((a,x)=>a+x.theirs,0)/gp;
+  return {seed,you:me,prof:me?me.prof:unitProfile(),W,L,games:yourGames,pf,pa,confs,teams,playerStats,league,sixth:playerStats[5],mp:true};
+}
+function tryRunMP(room){const s=room.settings||{},players=room.players||{};let lineup=(s.lineup&&s.lineup.length)?s.lineup.slice():Object.keys(players).filter(id=>players[id].drafted);lineup=lineup.slice().sort();if(!lineup.length)return;if(!lineup.every(id=>players[id]&&players[id].roster))return;if(!lineup.includes(mpUid)){mpRan=true;const sim=$("#sim");if(sim){sim.disabled=true;sim.textContent="Season started without you \u2014 you didn't draft in time";}return;}mpRan=true;mpLobbyTeams=lineup.map(id=>buildLobbyUnit(mpRosterArr(players[id].roster),players[id].name,(s.conf||conference),id,id===mpUid));runSeasonMP();}
+function runSeasonMP(){runSeed=(lobby?lobby.seed:0)>>>0;reg=simulateLeagueMP(runSeed,mpLobbyTeams);po=null;poReveal=0;phase="regular";activeResTab="log";started=true;updateSummaries();showScreen("results");afterRegular();setTimeout(showChampionPopup,60);}
+function ordSafe(n){try{return ordinal(n);}catch(e){return "#"+n;}}
+function showChampionPopup(){if(!reg||!reg.teams)return;const lob=reg.teams.filter(t=>t.lobby).slice().sort((a,b)=>b.wins-a.wins||a.seed-b.seed);if(!lob.length)return;const champ=lob[0],youWon=!!champ.isYou,myIdx=lob.findIndex(t=>t.isYou);
+  const rows=lob.map((t,i)=>`<div class="ch-row${t.isYou?" me":""}${i===0?" champ":""}"><span class="ch-rank">${i===0?"\u{1F451}":"#"+(i+1)}</span><span class="ch-nm">${mpEsc(t.name)}${t.isYou?' <span class="mp-youtag">you</span>':""}</span><span class="ch-rec">${t.wins}\u2013${t.losses}</span><span class="ch-seed">${t.conf==="E"?"East":"West"} ${ordSafe(t.seed)}</span></div>`).join("");
+  const root=$("#modalRoot");if(!root)return;
+  root.innerHTML=`<div class="lbm-bg" id="chBg"><div class="lbm ch-modal"><div class="ch-crown">${youWon?"\u{1F451} You are the lobby Champion":mpEsc(champ.name)+" wins the lobby"}</div><div class="ch-sub">${youWon?`Best record in the lobby at ${champ.wins}\u2013${champ.losses}.`:`You finished ${ordSafe(myIdx+1)} of ${lob.length}. ${mpEsc(champ.name)} took the crown at ${champ.wins}\u2013${champ.losses}.`}</div><div class="ch-list">${rows}</div><button class="lbm-btn" id="chClose">See full standings</button></div></div>`;
+  const close=()=>{root.innerHTML="";};$("#chClose").onclick=close;$("#chBg").onclick=(e)=>{if(e.target.id==="chBg")close();};
+}
+function mpUpdateDraftUI(room){if(!mpRoom||screen!=="draft")return;const sim=$("#sim");if(!sim)return;const modeEl=$("#simmode");if(modeEl)modeEl.style.display="none";
+  const players=(room&&room.players)||{},ids=Object.keys(players),drafted=ids.filter(id=>players[id].drafted).length,total=ids.length;
+  if(!rosterFull()){sim.disabled=true;sim.textContent=`Fill all 6 to lock your team (${Object.values(roster).filter(Boolean).length}/6)`;sim.onclick=null;return;}
+  if(mpIsHost){const canRun=drafted>=1;sim.disabled=!canRun;sim.textContent=(drafted>=total)?`Run the season \u2192 (all ${total} ready)`:`Run the season \u2192 (${drafted}/${total} drafted)`;sim.onclick=()=>{if(mpRoom){const lineup=ids.filter(id=>players[id].drafted);if(lineup.length)mpRoom.child("settings").update({status:"running",lineup});}};}
+  else{sim.disabled=true;sim.textContent=`\u2713 Team locked \u2014 waiting (${drafted}/${total} drafted)`;sim.onclick=null;}
+}
+function mpOnRoom(room){if(!room)return;mpRoomData=room;const st=(room.settings||{}).status;
+  if(st==="started"&&screen==="lobby"&&!mpStarted){mpStarted=true;startDraft();}
+  if(st==="running"&&!mpRan)tryRunMP(room);
+  if(screen==="lobby")renderLobbyScreen(room);else if(screen==="draft")mpUpdateDraftUI(room);
+}
+
 /* ============================================================ WIRE UP ============================================================ */
-$("#sim").addEventListener("click",()=>{if(rosterFull())runSeason();});
+$("#sim").addEventListener("click",()=>{if(!mpRoom&&rosterFull())runSeason();});
 initControls();applyLock();
 const _lb=parseHashLobby();
 if(_lb){applyLobby(_lb);if(mpInit()){mpHeader(_lb);showScreen("lobby");mpJoin(_lb);}else{showScreen("setup");}}
