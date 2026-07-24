@@ -104,6 +104,10 @@
   .rp-t{font-family:"IBM Plex Mono";font-size:10px;color:var(--dim);white-space:nowrap;margin:0 10px}
   .rp-sc{font-family:"IBM Plex Mono";font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap;min-width:44px;text-align:right}
   .riv-play.score{background:rgba(255,194,75,.05)}
+  .draft-timer{font-family:"IBM Plex Mono";font-weight:600;font-size:13px;color:var(--led);background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:5px 10px;margin-right:10px}
+  .draft-timer.low{color:var(--loss);border-color:var(--loss);animation:sflash .5s ease infinite}
+  .mp-posrow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+  .mp-poslbl{font-family:"IBM Plex Mono";font-size:11px;color:var(--muted)}
   .lbm-bg{position:fixed;inset:0;background:rgba(6,9,13,.78);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:18px;z-index:60}
   .lbm{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:440px;width:100%;padding:22px;max-height:90vh;overflow:auto}
   .lbm-h{display:flex;justify-content:space-between;align-items:flex-start}
@@ -313,7 +317,7 @@
 
   <!-- ============ DRAFT SCREEN ============ -->
   <div id="draftScreen" class="screen" style="display:none">
-    <div class="draft-summary"><span id="setupSummary"></span><span class="ds-actions"><span class="rr">Rerolls <b id="rrCount">1</b></span><button class="ds-clear" id="reset">Clear lineup</button></span></div>
+    <div class="draft-summary"><span class="draft-timer" id="draftTimer" style="display:none"></span><span id="setupSummary"></span><span class="ds-actions"><span class="rr">Rerolls <b id="rrCount">1</b></span><button class="ds-clear" id="reset">Clear lineup</button></span></div>
     <div class="board">
       <div class="card">
         <h2>The Lineup</h2>
@@ -501,10 +505,15 @@ function winProbVs(O,D,oppR,homeFor){return normCdf(expMarginVs(O,D,oppR,homeFor
 function sampleGame(O,D,oppR,homeFor,g){const forA=PACE+K*(O-oppR),forB=PACE+K*(oppR-D);const margin=g((forA-forB)+(homeFor?HOME:-HOME),SD_MARGIN);const total=Math.max(174,g(forA+forB,SD_TOTAL));let a=Math.round((total+margin)/2),b=Math.round((total-margin)/2);if(a===b){if(margin>=0)a++;else b++;}return {a,b,win:a>b};}
 function sampleGeneric(rA,rB,homeA,g){const margin=g(K*(rA-rB)*2+(homeA?HOME:-HOME),SD_MARGIN);const total=Math.max(174,g(2*PACE,SD_TOTAL));let a=Math.round((total+margin)/2),b=Math.round((total-margin)/2);if(a===b){if(margin>=0)a++;else b++;}return {a,b,win:a>b};}
 
+/* Secret backdoor: this exact starting five sweeps the league 82-0 */
+const DREAM={PG:"Stephen Curry",SG:"Michael Jordan",SF:"LeBron James",PF:"Tim Duncan",C:"Shaquille O'Neal"};
+function isDreamRoster(){return ["PG","SG","SF","PF","C"].every(k=>roster[k]&&roster[k].n===DREAM[k]);}
+function isDreamSix(six){if(!six||!six.length)return false;const b={};six.forEach(e=>{b[e.slot]=e.n;});return ["PG","SG","SF","PF","C"].every(k=>b[k]===DREAM[k]);}
+
 /* ============================================================ COHERENT LEAGUE ============================================================ */
 function simulateLeague(seed){
   const prof=unitProfile();
-  const you={name:"Your Legends",conf:conference,isYou:true,O:prof.O,D:prof.D,prof,rating:(prof.O+prof.D)/2,wins:0,losses:0,gp:0};
+  const you={name:"Your Legends",conf:conference,isYou:true,O:prof.O,D:prof.D,prof,rating:(prof.O+prof.D)/2,cheat:isDreamRoster(),wins:0,losses:0,gp:0};
   const teams=NBA_TEAMS.map(t=>({name:t.name,conf:t.conf,rating:t.rating,O:t.rating,D:t.rating,isYou:false,wins:0,losses:0,gp:0})).concat([you]);
   const rng=mulberry32(seed),g=gaussFrom(rng);
   const sched=[];
@@ -521,8 +530,10 @@ function simulateLeague(seed){
     if(h.isYou)res=sampleGame(h.O,h.D,aw.rating,true,g);
     else if(aw.isYou){const r=sampleGame(aw.O,aw.D,h.rating,false,g);res={a:r.b,b:r.a,win:r.a<r.b};}
     else res=sampleGeneric(h.rating,aw.rating,true,g);
+    if(you.cheat){if(h.isYou)res.win=true;else if(aw.isYou)res.win=false;}
     if(res.win){h.wins++;aw.losses++;}else{h.losses++;aw.wins++;}
-    if(h.isYou||aw.isYou){const mine=h.isYou?res.a:res.b,theirs=h.isYou?res.b:res.a,opp=h.isYou?aw:h,win=h.isYou?res.win:!res.win,home=h.isYou;
+    if(h.isYou||aw.isYou){let mine=h.isYou?res.a:res.b,theirs=h.isYou?res.b:res.a;const opp=h.isYou?aw:h,win=h.isYou?res.win:!res.win,home=h.isYou;
+      if(you.cheat&&mine<=theirs){const t=mine;mine=theirs;theirs=t;if(mine===theirs)mine++;}
       const box=makeBox(pool,sixth,mine,g);pool.forEach((pl,j)=>{tot[j].pts+=box.pts[j];tot[j].reb+=box.reb[j];tot[j].ast+=box.ast[j];});
       let sM=-1,sI=0,aM=-1,aI=0;box.pts.forEach((v,j)=>{if(v>sM){sM=v;sI=j;}});box.ast.forEach((v,j)=>{if(v>aM){aM=v;aI=j;}});
       yourGames.push({opp:opp.name,oppR:opp.rating,home,win,mine,theirs,box,topS:pool[sI],sVal:sM,topA:pool[aI],aVal:aM});pf+=mine;pa+=theirs;}
@@ -674,7 +685,7 @@ function renderCourt(){
   renderMovebar();
   const btn=$("#sim");
   if(mpRoom){if(rosterFull()&&!mpPublished){mpPublished=true;mpPublishRoster();}mpUpdateDraftUI(mpRoomData);}
-  else{btn.disabled=!rosterFull();btn.textContent=rosterFull()?(phase==="draft"?"Simulate the season":"Re-simulate season"):`Fill all 6 to simulate (${Object.values(roster).filter(Boolean).length}/6)`;}
+  else{btn.disabled=!rosterFull();btn.textContent=rosterFull()?"Simulate the season":`Fill all 6 to simulate (${Object.values(roster).filter(Boolean).length}/6)`;}
   $("#rrCount").textContent=rerollsLeft;
 }
 function renderMovebar(){const host=$("#movebarHost");if(!movingSlot||!roster[movingSlot]){host.innerHTML="";return;}const p=roster[movingSlot];const targets=movableTargets(movingSlot);
@@ -732,7 +743,7 @@ function renderPicker(){
 function doSpin(){const teams=spinnableTeams();if(!teams.length){renderPicker();return;}if(!started){started=true;applyLock();}
   const finalTeam=teams[Math.floor(Math.random()*teams.length)];spinning=true;currentTeam=null;pickSel=null;renderPicker();
   const rt=$("#reelTeam"),ry=$("#reelYr");const total=22;let i=0;
-  (function tick(){i++;const tt=i>=total?finalTeam:teams[Math.floor(Math.random()*teams.length)];if(rt)rt.textContent=tt.team;if(ry)ry.textContent=`${tt.year-1}/${String(tt.year).slice(2)}`;if(i>=total){spinning=false;currentTeam=finalTeam;renderPicker();return;}setTimeout(tick,32+i*i*0.85);})();
+  (function tick(){i++;const last=i>=total;const tt=last?finalTeam:teams[Math.floor(Math.random()*teams.length)];if(rt)rt.textContent=tt.team;if(ry)ry.textContent=`${tt.year-1}/${String(tt.year).slice(2)}`;if(last){const reel=$("#reel");if(reel){reel.classList.remove("spinning");reel.classList.add("landed");}setTimeout(()=>{spinning=false;currentTeam=finalTeam;renderPicker();},600);return;}setTimeout(tick,32+i*i*0.85);})();
 }
 function draftPlayer(name,slot){const p=currentTeam.players.find(x=>x.n===name);if(!p||roster[slot])return;roster[slot]=Object.assign({},p,{tm:currentTeam.team,yr:currentTeam.year});currentTeam=null;pickSel=null;renderAll();}
 function renderAll(){$("#poolCount").textContent=poolCount();$("#rrCount").textContent=rerollsLeft;renderCourt();renderPicker();}
@@ -768,9 +779,9 @@ function verdict(){const seed=reg.you.seed,perfect=reg.L===0;
 function renderResults(){const v=verdict(),confShort=conference==="E"?"East":"West",R=reg,$r=$("#results");
   $r.innerHTML=`<div class="scoreboard"><div class="record"><div class="big"><span class="w">${R.W}</span>&ndash;<span class="l">${R.L}</span></div><div class="cap">Regular<br>Season<span class="seed">${confShort} #${v.seed} seed</span></div></div><div class="verdict ${v.tone}"><div class="headline">${v.h}</div><div class="note">${v.note}</div></div></div>
     <div class="metaline"><span>Off rtg <b>${R.prof.O.toFixed(1)}</b></span><span>Def rtg <b>${R.prof.D.toFixed(1)}</b></span><span>Points for <b>${R.pf.toFixed(1)}</b></span><span>Against <b>${R.pa.toFixed(1)}</b></span><span class="seedchip">seed #${R.seed}</span></div>
-    <div class="restabs" id="restabs"><button class="tab" data-t="log">Game Log</button><button class="tab" data-t="stand">Standings</button><button class="tab" data-t="stats">Player Stats</button><button class="tab" data-t="awards">Awards</button><button class="tab" data-t="analysis">Analysis</button><button class="tab" data-t="po">Playoffs</button><button class="tab" data-t="resim" style="margin-left:auto">&#8635; Re-sim</button></div>
+    <div class="restabs" id="restabs"><button class="tab" data-t="log">Game Log</button><button class="tab" data-t="stand">Standings</button><button class="tab" data-t="stats">Player Stats</button><button class="tab" data-t="awards">Awards</button><button class="tab" data-t="analysis">Analysis</button><button class="tab" data-t="po">Playoffs</button></div>
     <div id="resbody"></div>`;
-  document.querySelectorAll("#restabs .tab").forEach(b=>{b.onclick=()=>{if(b.dataset.t==="resim"){runSeason();return;}activeResTab=b.dataset.t;paintTab();};});
+  document.querySelectorAll("#restabs .tab").forEach(b=>{b.onclick=()=>{activeResTab=b.dataset.t;paintTab();};});
   paintTab();
 }
 function paintTab(){document.querySelectorAll("#restabs .tab").forEach(b=>b.classList.toggle("on",b.dataset.t===activeResTab));const body=$("#resbody");
@@ -867,7 +878,8 @@ function renderFeed(pbp,leftPts,rightPts,mode){const feed=$("#pbpFeed"),L=$("#pb
 
 /* ================= MULTIPLAYER — Firebase live lobby (Phase 1: waiting room) ================= */
 const FIREBASE_CONFIG={apiKey:"AIzaSyA5dhTBzxjjt_Hozfoto50nsOAmhaIZk48",authDomain:"project-82-0.firebaseapp.com",databaseURL:"https://project-82-0-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"project-82-0",storageBucket:"project-82-0.firebasestorage.app",messagingSenderId:"1084377339040",appId:"1:1084377339040:web:f98bea8a2eff042218e5c5",measurementId:"G-WXVD3XZK24"};
-let mpOn=false,mpAuth=null,mpDb=null,mpUid=null,mpRoom=null,mpCode=null,mpJoined=false,mpStarted=false,mpIsHost=false,mpRoomData=null,mpPublished=false,mpRan=false,mpLobbyTeams=null;
+let mpOn=false,mpAuth=null,mpDb=null,mpUid=null,mpRoom=null,mpCode=null,mpJoined=false,mpStarted=false,mpIsHost=false,mpRoomData=null,mpPublished=false,mpRan=false,mpLobbyTeams=null,mpTimer=null,mpTimeLeft=0;
+const DRAFT_SECONDS=120;
 function mpEsc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function mpInit(){if(mpOn)return true;if(typeof firebase==="undefined"||!firebase.initializeApp)return false;try{if(!(firebase.apps&&firebase.apps.length))firebase.initializeApp(FIREBASE_CONFIG);mpAuth=firebase.auth();mpDb=firebase.database();mpOn=true;return true;}catch(e){console.warn("Firebase unavailable",e);return false;}}
 function mpHeader(l){const c=$("#mpCodeShow");if(c)c.textContent=groupCode(l.code);const s=$("#mpSettings");if(s)s.innerHTML=`Era ${l.from}\u2013${l.to} \u00b7 ${l.conf==="E"?"Eastern":"Western"} Conference \u00b7 everyone plays the identical league`;const lv=$("#mpLeave");if(lv)lv.onclick=mpLeave;}
@@ -890,22 +902,34 @@ function renderLobbyScreen(room,note){const body=$("#lobbyBody");if(!body)return
   const ids=Object.keys(players).sort((a,b)=>(players[a].joinedAt||0)-(players[b].joinedAt||0));
   const allReady=ids.length>0&&ids.every(id=>players[id].ready);
   const me=players[mpUid]||{};
+  const free=!!settings.free;
   const list=ids.map(id=>{const p=players[id],you=id===mpUid,host=id===settings.hostId;
     return `<div class="mp-p${you?" me":""}"><span class="mp-nm">${mpEsc(p.name||"Player")}${host?' <span class="mp-hosttag">host</span>':""}${you?' <span class="mp-youtag">you</span>':""}</span><span class="mp-rd ${p.ready?"on":""}">${p.ready?"Ready":"Not ready"}</span></div>`;}).join("");
   body.innerHTML=`<div class="mp-players">${list||'<div class="mp-note">Waiting for players\u2026</div>'}</div>
     <div class="mp-namerow"><label>Your name</label><input id="mpName" class="mp-in" maxlength="18" value="${mpEsc(me.name||window._lbName||"")}"></div>
+    ${mpIsHost?`<div class="mp-posrow"><span class="mp-poslbl">Positioning</span><div class="conf-toggle" id="mpPos"><button data-f="0" class="${free?"":"on"}">By position</button><button data-f="1" class="${free?"on":""}">Free</button></div></div>`:`<div class="mp-note" style="margin-bottom:12px">Positioning: <b>${free?"Free (positionless)":"By position"}</b> \u00b7 set by host</div>`}
     <button class="bigcta${me.ready?" isready":""}" id="mpReady">${me.ready?"\u2713 Ready":"I'm ready"}</button>
     ${mpIsHost?`<button class="bigcta" id="mpStart" style="margin-top:10px"${allReady?"":" disabled"}>${allReady?"Start league &rarr;":"Waiting for all players to ready"}</button>`:`<div class="mp-note" style="margin-top:12px">${allReady?"Everyone's ready \u2014 waiting for the host to start.":"Ready up, then the host starts the league."}</div>`}`;
   const nm=$("#mpName");if(nm)nm.onchange=()=>{const v=(nm.value||"").slice(0,18)||"Player";window._lbName=v;if(mpRoom)mpRoom.child("players/"+mpUid+"/name").set(v);};
+  const pos=$("#mpPos");if(pos)pos.querySelectorAll("button").forEach(b=>b.onclick=()=>{if(mpRoom)mpRoom.child("settings/free").set(b.dataset.f==="1");});
   const rb=$("#mpReady");if(rb)rb.onclick=()=>{if(mpRoom)mpRoom.child("players/"+mpUid+"/ready").set(!me.ready);};
   const sb=$("#mpStart");if(sb)sb.onclick=()=>{if(allReady&&mpRoom)mpRoom.child("settings/status").set("started");};
 }
-function mpLeave(){try{if(mpRoom){mpRoom.off();mpRoom.child("players/"+mpUid).remove();}}catch(e){}mpRoom=null;mpJoined=false;mpStarted=false;leaveLobby();showScreen("setup");}
+function mpLeave(){try{if(mpRoom){mpRoom.off();mpRoom.child("players/"+mpUid).remove();}}catch(e){}clearInterval(mpTimer);mpRoom=null;mpJoined=false;mpStarted=false;mpPublished=false;mpRan=false;leaveLobby();showScreen("setup");}
 
 /* ---- Phase 2: shared league — lobby teams become extension franchises ---- */
 function mpRosterArr(r){if(!r)return [];const a=Array.isArray(r)?r.slice():Object.keys(r).sort((x,y)=>x-y).map(k=>r[k]);const ord=["PG","SG","SF","PF","C","6"];return a.slice().sort((p,q)=>ord.indexOf(p.slot)-ord.indexOf(q.slot));}
 function mpPublishRoster(){if(!mpRoom||!mpUid||!rosterFull())return;const order=["PG","SG","SF","PF","C","6"];const r=order.map(k=>{const p=roster[k];return {slot:k,n:p.n,pos:p.pos,ppg:p.ppg,rpg:p.rpg,apg:p.apg,imp:p.imp,tm:p.tm,yr:p.yr};});mpRoom.child("players/"+mpUid).update({roster:r,drafted:true}).catch(()=>{});}
-function buildLobbyUnit(six,name,conf,uid,isYou){let oN=0,oD=0,dN=0,dD=0,apgW=0,rpgW=0,wsum=0;six.forEach(e=>{const w=e.slot==="6"?0.5:1;const pos=e.slot==="6"?(e.pos||"SF"):e.slot;const ow=OFFW[pos]*w,dw=DEFW[pos]*w;oN+=offI(e)*ow;oD+=ow;dN+=defI(e)*dw;dD+=dw;apgW+=(e.apg||0)*w;rpgW+=(e.rpg||0)*w;wsum+=w;});const O=oN/oD,D=dN/dD;return {name:name||"Player",conf,isYou,uid,lobby:true,O,D,prof:{O,D,apg:apgW/wsum,rpg:rpgW/wsum},six,rating:(O+D)/2,wins:0,losses:0,gp:0};}
+function autoFillRoster(){const taken=takenNames();["PG","SG","SF","PF","C","6"].forEach(k=>{if(roster[k])return;const cands=ALL_PLAYERS.filter(p=>inRange(p.yr)&&!taken.has(p.n)&&(k==="6"||freePos||eligPositions(p).includes(k)));if(!cands.length)return;const pick=cands[Math.floor(Math.random()*cands.length)];roster[k]=Object.assign({},pick);taken.add(pick.n);});currentTeam=null;pickSel=null;renderAll();}
+function mpFmt(s){s=Math.max(0,s);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");}
+function mpStartTimer(){if(!mpRoom)return;clearInterval(mpTimer);mpTimeLeft=DRAFT_SECONDS;const el=$("#draftTimer");if(el)el.style.display="";mpTickTimer();mpTimer=setInterval(mpTickTimer,1000);}
+function mpTickTimer(){const el=$("#draftTimer");
+  if(screen!=="draft"||!mpRoom){clearInterval(mpTimer);if(el)el.style.display="none";return;}
+  if(rosterFull()){clearInterval(mpTimer);if(el){el.textContent="\u2713 Team locked";el.classList.remove("low");}return;}
+  if(mpTimeLeft<=0){clearInterval(mpTimer);if(el){el.textContent="\u23f1 Time! Auto-filled";el.classList.remove("low");}autoFillRoster();return;}
+  if(el){el.textContent="\u23f1 "+mpFmt(mpTimeLeft)+" to draft";el.classList.toggle("low",mpTimeLeft<=15);}
+  mpTimeLeft--;}
+function buildLobbyUnit(six,name,conf,uid,isYou){let oN=0,oD=0,dN=0,dD=0,apgW=0,rpgW=0,wsum=0;six.forEach(e=>{const w=e.slot==="6"?0.5:1;const pos=e.slot==="6"?(e.pos||"SF"):e.slot;const ow=OFFW[pos]*w,dw=DEFW[pos]*w;oN+=offI(e)*ow;oD+=ow;dN+=defI(e)*dw;dD+=dw;apgW+=(e.apg||0)*w;rpgW+=(e.rpg||0)*w;wsum+=w;});const O=oN/oD,D=dN/dD;return {name:name||"Player",conf,isYou,uid,lobby:true,O,D,prof:{O,D,apg:apgW/wsum,rpg:rpgW/wsum},six,cheat:isDreamSix(six),rating:(O+D)/2,wins:0,losses:0,gp:0};}
 function simulateLeagueMP(seed,lobbyTeams){
   const teams=NBA_TEAMS.map(t=>({name:t.name,conf:t.conf,rating:t.rating,O:t.rating,D:t.rating,isYou:false,lobby:false,wins:0,losses:0,gp:0})).concat(lobbyTeams);
   const rng=mulberry32(seed),g=gaussFrom(rng);const sched=[];
@@ -914,8 +938,8 @@ function simulateLeagueMP(seed,lobbyTeams){
   if(extra>0)for(let i=0;i<n;i++)for(let d=1;d<=extra;d++){const j=(i+d)%n;sched.push([teams[i],teams[j]]);teams[i].gp++;teams[j].gp++;}
   for(let i=sched.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[sched[i],sched[j]]=[sched[j],sched[i]];}
   const me=lobbyTeams.find(t=>t.isYou),yourGames=[];
-  sched.forEach(([h,aw])=>{const res=sampleGeneric(h.rating,aw.rating,true,g);if(res.win){h.wins++;aw.losses++;}else{h.losses++;aw.wins++;}
-    if(me&&(h===me||aw===me)){const home=h===me,mine=home?res.a:res.b,theirs=home?res.b:res.a,opp=home?aw:h,win=home?res.win:!res.win;yourGames.push({opp:opp.name,oppR:opp.rating,home,win,mine,theirs,vsLobby:!!opp.lobby,vsUid:opp.uid||null});}});
+  sched.forEach(([h,aw])=>{const res=sampleGeneric(h.rating,aw.rating,true,g);let hw=res.win;if(h.cheat&&!aw.cheat)hw=true;else if(aw.cheat&&!h.cheat)hw=false;if(hw){h.wins++;aw.losses++;}else{h.losses++;aw.wins++;}
+    if(me&&(h===me||aw===me)){const home=h===me;let mine=home?res.a:res.b,theirs=home?res.b:res.a;let win=home?hw:!hw;if(me.cheat&&mine<=theirs){const t=mine;mine=theirs;theirs=t;if(mine===theirs)mine++;}const opp=home?aw:h;yourGames.push({opp:opp.name,oppR:opp.rating,home,win,mine,theirs,vsLobby:!!opp.lobby,vsUid:opp.uid||null});}});
   const order=["PG","SG","SF","PF","C","6"];
   const pool=me?me.six.slice().sort((a,b)=>order.indexOf(a.slot)-order.indexOf(b.slot)).map(e=>({n:e.n,pos:e.pos,ppg:e.ppg,rpg:e.rpg,apg:e.apg,imp:e.imp,tm:e.tm,yr:e.yr})):order.map(k=>roster[k]);
   const sixth=pool[5],tot=pool.map(()=>({pts:0,reb:0,ast:0}));
@@ -946,8 +970,8 @@ function mpUpdateDraftUI(room){if(!mpRoom||screen!=="draft")return;const sim=$("
   else{sim.disabled=true;sim.textContent=`\u2713 Team locked \u2014 waiting (${drafted}/${total} drafted)`;sim.onclick=null;}
 }
 function mpOnRoom(room){if(!room)return;mpRoomData=room;const st=(room.settings||{}).status;
-  if(st==="started"&&screen==="lobby"&&!mpStarted){mpStarted=true;startDraft();}
-  if(st==="running"&&!mpRan)tryRunMP(room);
+  if(st==="started"&&screen==="lobby"&&!mpStarted){mpStarted=true;freePos=!!(room.settings&&room.settings.free);startDraft();mpStartTimer();}
+  if(st==="running"&&!mpRan){clearInterval(mpTimer);tryRunMP(room);}
   if(screen==="lobby")renderLobbyScreen(room);else if(screen==="draft")mpUpdateDraftUI(room);
 }
 
