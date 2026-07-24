@@ -96,8 +96,12 @@ It's a static site — no build step, no dependencies to install.
 | File | What it is |
 | --- | --- |
 | `index.html` | Landing page and lobby entry point |
-| `nba-perfect-season.html` | The game — self‑contained engine, data, UI, and multiplayer |
+| `nba-perfect-season.html` | The game — a thin shell that loads the three files below |
+| `styles.css` | All game styling |
+| `rosters.js` | The player/team dataset (`window.EXTRA_TEAM_SEASONS`) |
+| `game.js` | Engine, UI, and multiplayer logic |
 
+All files must be hosted **together** in the same folder. Load order matters and is already wired in the HTML: Firebase → `styles.css` → `rosters.js` (defines the data) → `game.js` (reads it). Adding new team‑seasons is just a matter of appending to `rosters.js`.
 ---
 
 ## Tech
