@@ -246,7 +246,6 @@ function initControls(){
   document.querySelectorAll("#freeToggle button").forEach(b=>{b.onclick=()=>{freePos=b.dataset.f==="1";document.querySelectorAll("#freeToggle button").forEach(x=>x.classList.toggle("on",x===b));};});
   document.querySelectorAll("#simmode button").forEach(b=>{b.onclick=()=>{simMode=b.dataset.m;document.querySelectorAll("#simmode button").forEach(x=>x.classList.toggle("on",x===b));};});
   $("#startDraft").onclick=startDraft;
-  $("#reset").onclick=clearLineup;
   $("#restartRun").onclick=fullReset;
   $("#backToDraft").onclick=()=>{showScreen("draft");renderAll();};
   $("#poolCount").textContent=poolCount();
@@ -255,7 +254,6 @@ function summaryText(){return `${minYr===maxYr?minYr:minYr+"–"+maxYr} · ${CON
 function startDraft(){started=true;phase="draft";updateSummaries();showScreen("draft");renderAll();}
 function updateSummaries(){const s=summaryText();const a=$("#setupSummary"),b=$("#resSummary");if(a)a.textContent=s;if(b)b.textContent=s;
   if(lobby){const rs=$("#resSummary");const acts=rs&&rs.parentElement.querySelector(".ds-actions");if(acts&&!$("#cmpOpen")){const btn=document.createElement("button");btn.id="cmpOpen";btn.className="ds-clear";btn.style.borderColor="var(--action)";btn.style.color="var(--action)";btn.textContent="🏀 Compare with friends";btn.onclick=openLobbyCompare;acts.insertBefore(btn,acts.firstChild);}}}
-function clearLineup(){roster={PG:null,SG:null,SF:null,PF:null,C:null,"6":null};rerollsLeft=1;spinning=false;currentTeam=null;movingSlot=null;pickSel=null;renderAll();}
 function fullReset(){roster={PG:null,SG:null,SF:null,PF:null,C:null,"6":null};rerollsLeft=1;started=false;spinning=false;currentTeam=null;movingSlot=null;pickSel=null;phase="draft";reg=null;po=null;poReveal=0;activeResTab="log";$("#results").innerHTML="";$("#poolCount").textContent=poolCount();showScreen("setup");renderAll();}
 
 /* ============================================================ MULTIPLAYER LOBBY (shared-seed, no backend) ============================================================ */
@@ -374,7 +372,7 @@ function renderPicker(){
     wrap.querySelectorAll(".pcard").forEach(c=>{if(c.dataset.draftable==="1"){c.querySelector(".prow").onclick=()=>{const n=decodeURIComponent(c.dataset.n);pickSel=(pickSel===n?null:n);renderPicker();const pi=wrap.querySelector(".pcard.sel .placein");if(pi)pi.scrollIntoView({block:"nearest"});};c.querySelectorAll(".pi-btn").forEach(btn=>btn.onclick=(e)=>{e.stopPropagation();draftPlayer(decodeURIComponent(c.dataset.n),btn.dataset.slot);});}});
     return;
   }
-  wrap.innerHTML=`<div class="reel" id="reel"><div class="placeholder">Spin for a team & season</div></div><div class="spin-cta"><button class="spinbtn" id="spinBtn" ${teams.length?"":"disabled"}>Spin the wheel</button></div>${teams.length?"":'<div class="foot-note" style="color:var(--loss)">No eligible team — Clear all to change the pool.</div>'}`;
+  wrap.innerHTML=`<div class="reel" id="reel"><div class="placeholder">Spin for a team & season</div></div><div class="spin-cta"><button class="spinbtn" id="spinBtn" ${teams.length?"":"disabled"}>Spin the wheel</button></div>${teams.length?"":'<div class="foot-note" style="color:var(--loss)">No eligible team — Restart run to change the pool.</div>'}`;
   if(teams.length)$("#spinBtn").onclick=doSpin;
 }
 function doSpin(){const teams=spinnableTeams();if(!teams.length){renderPicker();return;}if(!started){started=true;applyLock();}
