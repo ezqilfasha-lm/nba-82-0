@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <title>82-0 · The Perfect Season</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -52,6 +55,26 @@
   .lobby-banner .lb-code{font-family:"Anton";font-size:18px;letter-spacing:.12em;color:var(--led)}
   .lobby-banner .lb-note{font-family:"IBM Plex Mono";font-size:11px;color:var(--muted);flex:1;min-width:160px}
   .lobby-banner .lb-leave{margin-left:auto;background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:6px;font-family:"IBM Plex Mono";font-size:11px;padding:6px 10px;cursor:pointer}.lobby-banner .lb-leave:hover{border-color:var(--loss);color:var(--loss)}
+  .mp-card{max-width:560px;margin:0 auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px}
+  .mp-h{font-family:"Anton";font-weight:400;font-size:26px;color:var(--ink);letter-spacing:.5px}
+  .mp-code{font-family:"Anton";font-weight:400;font-size:22px;letter-spacing:.14em;color:var(--led);margin-top:2px}
+  .mp-settings{font-family:"IBM Plex Mono";font-size:12px;color:var(--muted);margin:6px 0 18px}
+  .mp-players{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+  .mp-p{display:flex;align-items:center;justify-content:space-between;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:11px 14px}
+  .mp-p.me{border-color:var(--action)}
+  .mp-nm{font-family:"Oswald";font-weight:600;font-size:15px;color:var(--ink)}
+  .mp-hosttag,.mp-youtag{font-family:"IBM Plex Mono";font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;padding:2px 6px;border-radius:5px;margin-left:6px}
+  .mp-hosttag{background:var(--led);color:#0c0f14}
+  .mp-youtag{background:var(--line);color:var(--muted)}
+  .mp-rd{font-family:"IBM Plex Mono";font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:20px;padding:4px 12px;white-space:nowrap}
+  .mp-rd.on{color:var(--win);border-color:var(--win)}
+  .mp-namerow{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .mp-namerow label{font-family:"IBM Plex Mono";font-size:11px;color:var(--muted)}
+  .mp-in{flex:1;background:var(--court);border:1px solid var(--line);border-radius:8px;color:var(--ink);font-family:"Oswald";font-size:15px;padding:9px 12px}
+  #mpReady.isready{background:var(--win);color:#06231a}
+  #mpStart:disabled{opacity:.45;cursor:not-allowed}
+  .mp-note{font-family:"IBM Plex Mono";font-size:12px;color:var(--muted);text-align:center;padding:10px 0}
+  .mp-leave{display:block;margin:14px auto 0;background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:8px;font-family:"IBM Plex Mono";font-size:11px;padding:8px 14px;cursor:pointer}.mp-leave:hover{border-color:var(--loss);color:var(--loss)}
   .lbm-bg{position:fixed;inset:0;background:rgba(6,9,13,.78);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:18px;z-index:60}
   .lbm{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:440px;width:100%;padding:22px;max-height:90vh;overflow:auto}
   .lbm-h{display:flex;justify-content:space-between;align-items:flex-start}
@@ -245,6 +268,17 @@
         <div class="setup-ctrl"><div class="conf-toggle" id="freeToggle"><button data-f="0" class="on">By position</button><button data-f="1">Free</button></div></div></div>
       <div class="setup-pool"><b id="poolCount">0</b> players in the pool</div>
       <button class="bigcta" id="startDraft">Start Draft &rarr;</button>
+    </div>
+  </div>
+
+  <!-- ============ MULTIPLAYER LOBBY (waiting room) ============ -->
+  <div id="lobbyScreen" class="screen" style="display:none">
+    <div class="mp-card">
+      <div class="mp-h">Multiplayer lobby</div>
+      <div class="mp-code" id="mpCodeShow">&mdash;</div>
+      <div class="mp-settings" id="mpSettings"></div>
+      <div id="lobbyBody"><div class="mp-note">Connecting&hellip;</div></div>
+      <button class="mp-leave" id="mpLeave">Leave lobby</button>
     </div>
   </div>
 
@@ -525,7 +559,7 @@ function buildPBP(gm){const r=mulberry32(hashSeed(runSeed,gm.oppName,gm.mine,gm.
 }
 
 /* ============================================================ DRAFT / SETUP UI ============================================================ */
-function showScreen(n){screen=n;$("#setupScreen").style.display=n==="setup"?"":"none";$("#draftScreen").style.display=n==="draft"?"":"none";$("#resultsScreen").style.display=n==="results"?"":"none";$("#restartRun").style.display=n==="setup"?"none":"";window.scrollTo({top:0,behavior:"smooth"});}
+function showScreen(n){screen=n;$("#setupScreen").style.display=n==="setup"?"":"none";$("#draftScreen").style.display=n==="draft"?"":"none";$("#resultsScreen").style.display=n==="results"?"":"none";const ls=$("#lobbyScreen");if(ls)ls.style.display=n==="lobby"?"":"none";$("#restartRun").style.display=(n==="setup"||n==="lobby")?"none":"";window.scrollTo({top:0,behavior:"smooth"});}
 function initControls(){
   const from=$("#from"),to=$("#to");SEASON_YEARS.forEach(y=>{from.appendChild(new Option(y,y));to.appendChild(new Option(y,y));});
   minYr=YMIN;maxYr=YMAX;from.value=minYr;to.value=maxYr;
@@ -800,9 +834,51 @@ function renderFeed(pbp,leftPts,rightPts,mode){const feed=$("#pbpFeed"),L=$("#pb
     fq.plays.forEach((p,k)=>setTimeout(()=>{if(stopped)return;const d=document.createElement("div");d.className="play";d.innerHTML=`<span class="desc">${p.you?`<span class="who">${p.who}</span>`:p.who} ${p.val===3?"drills a three":"scores"}</span>`;feed.appendChild(d);feed.scrollTop=feed.scrollHeight;},k*220));
     setTimeout(()=>{if(stopped)return;L.textContent=fq.mScore;R.textContent=fq.tScore;const e=document.createElement("div");e.className="fq";e.textContent=`End of Q${fq.q} — ${fq.mScore}-${fq.tScore}`;feed.appendChild(e);i++;tick();},fq.plays.length*220+400);})();}
 
+/* ================= MULTIPLAYER — Firebase live lobby (Phase 1: waiting room) ================= */
+const FIREBASE_CONFIG={apiKey:"AIzaSyA5dhTBzxjjt_Hozfoto50nsOAmhaIZk48",authDomain:"project-82-0.firebaseapp.com",databaseURL:"https://project-82-0-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"project-82-0",storageBucket:"project-82-0.firebasestorage.app",messagingSenderId:"1084377339040",appId:"1:1084377339040:web:f98bea8a2eff042218e5c5",measurementId:"G-WXVD3XZK24"};
+let mpOn=false,mpAuth=null,mpDb=null,mpUid=null,mpRoom=null,mpCode=null,mpJoined=false,mpStarted=false,mpIsHost=false;
+function mpEsc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function mpInit(){if(mpOn)return true;if(typeof firebase==="undefined"||!firebase.initializeApp)return false;try{if(!(firebase.apps&&firebase.apps.length))firebase.initializeApp(FIREBASE_CONFIG);mpAuth=firebase.auth();mpDb=firebase.database();mpOn=true;return true;}catch(e){console.warn("Firebase unavailable",e);return false;}}
+function mpHeader(l){const c=$("#mpCodeShow");if(c)c.textContent=groupCode(l.code);const s=$("#mpSettings");if(s)s.innerHTML=`Era ${l.from}\u2013${l.to} \u00b7 ${l.conf==="E"?"Eastern":"Western"} Conference \u00b7 everyone plays the identical league`;const lv=$("#mpLeave");if(lv)lv.onclick=mpLeave;}
+function mpJoin(l){mpCode=l.code;
+  mpAuth.onAuthStateChanged(user=>{if(!user||mpJoined)return;mpJoined=true;mpUid=user.uid;mpRoom=mpDb.ref("rooms/"+mpCode);
+    mpRoom.child("settings").once("value").then(s=>{
+      if(!s.exists())mpRoom.child("settings").set({seed:l.seed,eraFrom:l.from,eraTo:l.to,conf:l.conf,hostId:mpUid,status:"waiting",createdAt:Date.now()}).catch(()=>{});
+      const meRef=mpRoom.child("players/"+mpUid);
+      meRef.update({name:(window._lbName||"Player"),ready:false,joinedAt:Date.now()}).catch(()=>{});
+      meRef.onDisconnect().remove();
+      mpRoom.on("value",snap=>renderLobbyScreen(snap.val()));
+    }).catch(()=>renderLobbyScreen(null,"Couldn't reach the lobby \u2014 check your connection, or tap Leave to play solo."));
+  });
+  mpAuth.signInAnonymously().catch(()=>renderLobbyScreen(null,"Sign-in failed \u2014 check your connection, or tap Leave to play solo."));
+}
+function renderLobbyScreen(room,note){const body=$("#lobbyBody");if(!body)return;
+  if(!room){body.innerHTML=`<div class="mp-note">${note||"Connecting\u2026"}</div>`;return;}
+  const settings=room.settings||{},players=room.players||{};
+  mpIsHost=(settings.hostId===mpUid);
+  const ids=Object.keys(players).sort((a,b)=>(players[a].joinedAt||0)-(players[b].joinedAt||0));
+  const allReady=ids.length>0&&ids.every(id=>players[id].ready);
+  if(settings.status==="started"&&!mpStarted){mpStarted=true;startDraft();return;}
+  const me=players[mpUid]||{};
+  const list=ids.map(id=>{const p=players[id],you=id===mpUid,host=id===settings.hostId;
+    return `<div class="mp-p${you?" me":""}"><span class="mp-nm">${mpEsc(p.name||"Player")}${host?' <span class="mp-hosttag">host</span>':""}${you?' <span class="mp-youtag">you</span>':""}</span><span class="mp-rd ${p.ready?"on":""}">${p.ready?"Ready":"Not ready"}</span></div>`;}).join("");
+  body.innerHTML=`<div class="mp-players">${list||'<div class="mp-note">Waiting for players\u2026</div>'}</div>
+    <div class="mp-namerow"><label>Your name</label><input id="mpName" class="mp-in" maxlength="18" value="${mpEsc(me.name||window._lbName||"")}"></div>
+    <button class="bigcta${me.ready?" isready":""}" id="mpReady">${me.ready?"\u2713 Ready":"I'm ready"}</button>
+    ${mpIsHost?`<button class="bigcta" id="mpStart" style="margin-top:10px"${allReady?"":" disabled"}>${allReady?"Start league &rarr;":"Waiting for all players to ready"}</button>`:`<div class="mp-note" style="margin-top:12px">${allReady?"Everyone's ready \u2014 waiting for the host to start.":"Ready up, then the host starts the league."}</div>`}`;
+  const nm=$("#mpName");if(nm)nm.onchange=()=>{const v=(nm.value||"").slice(0,18)||"Player";window._lbName=v;if(mpRoom)mpRoom.child("players/"+mpUid+"/name").set(v);};
+  const rb=$("#mpReady");if(rb)rb.onclick=()=>{if(mpRoom)mpRoom.child("players/"+mpUid+"/ready").set(!me.ready);};
+  const sb=$("#mpStart");if(sb)sb.onclick=()=>{if(allReady&&mpRoom)mpRoom.child("settings/status").set("started");};
+}
+function mpLeave(){try{if(mpRoom){mpRoom.off();mpRoom.child("players/"+mpUid).remove();}}catch(e){}mpRoom=null;mpJoined=false;mpStarted=false;leaveLobby();showScreen("setup");}
+
 /* ============================================================ WIRE UP ============================================================ */
 $("#sim").addEventListener("click",()=>{if(rosterFull())runSeason();});
-initControls();applyLock();const _lb=parseHashLobby();if(_lb)applyLobby(_lb);showScreen("setup");renderAll();
+initControls();applyLock();
+const _lb=parseHashLobby();
+if(_lb){applyLobby(_lb);if(mpInit()){mpHeader(_lb);showScreen("lobby");mpJoin(_lb);}else{showScreen("setup");}}
+else{showScreen("setup");}
+renderAll();
 </script>
 </body>
 </html>
