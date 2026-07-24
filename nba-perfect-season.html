@@ -739,7 +739,7 @@ function renderAll(){$("#poolCount").textContent=poolCount();$("#rrCount").textC
 
 /* ============================================================ SIM FLOW ============================================================ */
 function runSeason(){runSeed=lobby?(lobby.seed>>>0):((Math.floor(Math.random()*1e9))>>>0);reg=simulateLeague(runSeed);po=null;poReveal=0;phase="regular";activeResTab="log";updateSummaries();showScreen("results");if(simMode==="quick")afterRegular();else animateSeason();}
-function animateSeason(onDone){const reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;const $r=$("#results");if(reduce){afterRegular();if(onDone)onDone();return;}
+function animateSeason(onDone){const $r=$("#results");
   $r.innerHTML=`<div class="arena"><div class="arena-head"><div class="arena-meta">Game <b id="ar-gnum">0</b> / 82</div><div class="arena-ctrls"><button id="ar-skip">Skip to results &rarr;</button></div></div><div class="arena-body"><div class="arena-game"><div class="arena-opp" id="ar-opp">&nbsp;</div><div class="ar-score" id="ar-score">0&ndash;0</div><div class="ar-lead" id="ar-lead">&nbsp;</div></div><div class="arena-rec"><div class="r"><span class="w" id="ar-recW">0</span>&ndash;<span class="l" id="ar-recL">0</span></div><div class="cap">Record</div><div class="arena-stamp" id="ar-stamp">&nbsp;</div></div></div><div class="arena-streak" id="ar-streak"></div><div class="arena-bar"><div id="ar-barfill"></div></div></div>`;
   $r.scrollIntoView({behavior:"smooth",block:"start"});
   let i=0,W=0,L=0,stopped=false;const games=reg.games,streak=$("#ar-streak"),scoreEl=$("#ar-score"),stamp=$("#ar-stamp");
