@@ -321,7 +321,8 @@ function renderCourt(){
   renderMovebar();
   const btn=$("#sim");
   if(mpRoom){if(rosterFull()&&!mpPublished){mpPublished=true;mpPublishRoster();}mpUpdateDraftUI(mpRoomData);}
-  else{btn.disabled=!rosterFull();btn.textContent=rosterFull()?"Simulate the season":`Fill all 6 to simulate (${Object.values(roster).filter(Boolean).length}/6)`;}
+  else if(reg){const md=$("#simmode");if(md)md.style.display="none";btn.disabled=true;btn.textContent="Season played — Restart run to replay";}
+  else{const md=$("#simmode");if(md)md.style.display="";btn.disabled=!rosterFull();btn.textContent=rosterFull()?"Simulate the season":`Fill all 6 to simulate (${Object.values(roster).filter(Boolean).length}/6)`;}
   $("#rrCount").textContent=rerollsLeft;
 }
 function renderMovebar(){const host=$("#movebarHost");if(!movingSlot||!roster[movingSlot]){host.innerHTML="";return;}const p=roster[movingSlot];const targets=movableTargets(movingSlot);
