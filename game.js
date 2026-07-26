@@ -249,6 +249,7 @@ function initControls(){
   $("#restartRun").onclick=fullReset;
   $("#backToDraft").onclick=()=>{showScreen("draft");renderAll();};
   const _db=$("#dailyBtn");if(_db)_db.onclick=startDaily;
+  const _sc=$("#shareCard");if(_sc)_sc.onclick=shareCard;
   $("#poolCount").textContent=poolCount();
 }
 function summaryText(){return `${dailyMode?"\u{1F5D3}\uFE0F Daily #"+dailyNum+" · ":""}${minYr===maxYr?minYr:minYr+"–"+maxYr} · ${CONF_NAME[conference]} · ${freePos?"Free positioning":"By position"}${lobby?" · 🏀 Lobby "+groupCode(lobby.code):""}`;}
@@ -662,6 +663,36 @@ function playRivalry(gm,done){
 
 /* ============================================================ WIRE UP ============================================================ */
 $("#sim").addEventListener("click",()=>{if(!mpRoom&&rosterFull())runSeason();});
+/* ---- Shareable result card (canvas image) ---- */
+async function buildShareCanvas(){
+  try{if(document.fonts&&document.fonts.ready)await document.fonts.ready;}catch(e){}
+  const W=1080,H=1080,c=document.createElement("canvas");c.width=W;c.height=H;const x=c.getContext("2d");
+  const CSS=getComputedStyle(document.documentElement),col=(n,f)=>{const v=CSS.getPropertyValue(n).trim();return v||f;};
+  const ink=col("--ink","#eef1f5"),muted=col("--muted","#8b93a1"),led=col("--led","#ffc24b"),action=col("--action","#e8622c"),win=col("--win","#39d98a"),loss=col("--loss","#ef5470"),panel=col("--panel-2","#1b2230");
+  x.fillStyle=col("--court","#0c0f14");x.fillRect(0,0,W,H);
+  const grad=x.createRadialGradient(W/2,-120,50,W/2,-120,920);grad.addColorStop(0,"rgba(232,98,44,.20)");grad.addColorStop(1,"rgba(232,98,44,0)");x.fillStyle=grad;x.fillRect(0,0,W,H);
+  x.fillStyle=led;x.font="92px Anton, Impact, sans-serif";x.textAlign="left";x.textBaseline="alphabetic";x.fillText("82\u00b70",80,150);
+  x.fillStyle=muted;x.font="600 26px Oswald, sans-serif";x.fillText("THE PERFECT SEASON",84,188);
+  const me=((reg&&reg.teams)||[]).find(t=>t.isYou),seed=me?me.seed:0,Wn=reg?reg.W:0,Ln=reg?reg.L:0;
+  const ctx=dailyMode?("DAILY #"+dailyNum):((minYr===maxYr?minYr:minYr+"\u2013"+maxYr)+" \u00b7 "+(conference==="E"?"EAST":"WEST"));
+  x.textAlign="right";x.font="24px 'IBM Plex Mono', monospace";x.fillStyle=action;x.fillText(ctx,W-80,150);
+  const ry=520;x.font="230px Anton, Impact, sans-serif";const wStr=String(Wn),dStr="\u2013",lStr=String(Ln);
+  const wW=x.measureText(wStr).width,dW=x.measureText(dStr).width,lW=x.measureText(lStr).width,sx=W/2-(wW+dW+lW)/2;
+  x.textAlign="left";x.fillStyle=win;x.fillText(wStr,sx,ry);x.fillStyle=muted;x.fillText(dStr,sx+wW,ry);x.fillStyle=loss;x.fillText(lStr,sx+wW+dW,ry);
+  x.textAlign="center";x.font="600 34px Oswald, sans-serif";x.fillStyle=ink;x.fillText((Wn===82?"PERFECT SEASON \u00b7 ":"")+ordinal(seed).toUpperCase()+" SEED \u00b7 "+(conference==="E"?"EAST":"WEST"),W/2,600);
+  const slots=["PG","SG","SF","PF","C","6"],labels={PG:"PG",SG:"SG",SF:"SF",PF:"PF",C:"C","6":"6TH"},colX=[110,570],startY=730,rowH=96;
+  slots.forEach((k,i)=>{const p=roster[k],cx=colX[i%2],cy=startY+Math.floor(i/2)*rowH;
+    x.fillStyle=panel;x.fillRect(cx,cy-34,68,46);x.fillStyle=led;x.font="600 20px 'IBM Plex Mono', monospace";x.textAlign="center";x.fillText(labels[k],cx+34,cy-3);
+    x.textAlign="left";x.fillStyle=p?ink:muted;x.font="600 30px Oswald, sans-serif";let nm=p?p.n:"\u2014";if(nm.length>20)nm=nm.slice(0,19)+"\u2026";x.fillText(nm,cx+86,cy);});
+  x.textAlign="center";x.fillStyle=muted;x.font="24px 'IBM Plex Mono', monospace";let host="";try{host=(location.host&&location.host!=="null")?location.host:"";}catch(e){}
+  x.fillText("Can you beat it?"+(host?"  \u00b7  "+host:""),W/2,1015);
+  return c;
+}
+function shareCard(){if(!reg)return;buildShareCanvas().then(c=>{c.toBlob(async(blob)=>{if(!blob)return;const file=new File([blob],"82-0-result.png",{type:"image/png"});
+  try{if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:"82-0 \u00b7 The Perfect Season"});return;}}catch(e){}
+  const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="82-0-result.png";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);
+  },"image/png");}).catch(()=>{});}
+
 /* ============================================================ DAILY CHALLENGE ============================================================ */
 let dailyMode=false,dailyTeams=null,dailySeed=0,dailyNum=0;
 const DAILY_EPOCH=Date.UTC(2026,0,1);
@@ -690,8 +721,8 @@ function showDailyResult(){if(!reg)return;const me=(reg.teams||[]).find(t=>t.isY
     streak=store.streak||1;best=store.best?store.best.W+"\u2013"+store.best.L:best;}catch(e){}
   const wr=W/((W+L)||1),cells=10,fill=Math.max(0,Math.min(cells,Math.round(wr*cells))),bar="\u{1F7E9}".repeat(fill)+"\u2B1C".repeat(cells-fill);
   const share=dailyShareText(),root=$("#modalRoot");if(!root)return;
-  root.innerHTML=`<div class="lbm-bg" id="dqBg"><div class="lbm dq-modal"><div class="dq-tag">\u{1F5D3}\uFE0F Daily Challenge #${dailyNum}</div><div class="dq-rec">${W}\u2013${L}</div><div class="dq-sub">${conference==="E"?"East":"West"} \u00b7 ${ordinal(seed)} seed${W===82?" \u00b7 PERFECT SEASON \u{1F3C6}":""}</div><div class="dq-bar">${bar}</div><div class="dq-meta">Streak: <b>${streak}</b> day${streak===1?"":"s"} \u00b7 Best: <b>${best}</b></div><button class="lbm-btn" id="dqCopy">Copy result to share</button><button class="lbm-btn sec" id="dqClose" style="margin-top:8px">See standings</button></div></div>`;
-  $("#dqClose").onclick=()=>{root.innerHTML="";};$("#dqBg").onclick=(e)=>{if(e.target.id==="dqBg")root.innerHTML="";};
+  root.innerHTML=`<div class="lbm-bg" id="dqBg"><div class="lbm dq-modal"><div class="dq-tag">\u{1F5D3}\uFE0F Daily Challenge #${dailyNum}</div><div class="dq-rec">${W}\u2013${L}</div><div class="dq-sub">${conference==="E"?"East":"West"} \u00b7 ${ordinal(seed)} seed${W===82?" \u00b7 PERFECT SEASON \u{1F3C6}":""}</div><div class="dq-bar">${bar}</div><div class="dq-meta">Streak: <b>${streak}</b> day${streak===1?"":"s"} \u00b7 Best: <b>${best}</b></div><button class="lbm-btn" id="dqCopy">Copy result to share</button><button class="lbm-btn sec" id="dqImg" style="margin-top:8px">Save image</button><button class="lbm-btn sec" id="dqClose" style="margin-top:8px">See standings</button></div></div>`;
+  $("#dqClose").onclick=()=>{root.innerHTML="";};$("#dqBg").onclick=(e)=>{if(e.target.id==="dqBg")root.innerHTML="";};$("#dqImg").onclick=shareCard;
   $("#dqCopy").onclick=()=>{const b=$("#dqCopy");if(navigator.clipboard){navigator.clipboard.writeText(share).then(()=>{b.textContent="Copied! \u2713";},()=>{b.textContent="Press \u2318/Ctrl+C";});}else{b.textContent="Copy not supported";}};
 }
 
