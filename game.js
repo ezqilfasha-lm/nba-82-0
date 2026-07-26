@@ -248,13 +248,14 @@ function initControls(){
   $("#startDraft").onclick=startDraft;
   $("#restartRun").onclick=fullReset;
   $("#backToDraft").onclick=()=>{showScreen("draft");renderAll();};
+  const _db=$("#dailyBtn");if(_db)_db.onclick=startDaily;
   $("#poolCount").textContent=poolCount();
 }
-function summaryText(){return `${minYr===maxYr?minYr:minYr+"–"+maxYr} · ${CONF_NAME[conference]} · ${freePos?"Free positioning":"By position"}${lobby?" · 🏀 Lobby "+groupCode(lobby.code):""}`;}
+function summaryText(){return `${dailyMode?"\u{1F5D3}\uFE0F Daily #"+dailyNum+" · ":""}${minYr===maxYr?minYr:minYr+"–"+maxYr} · ${CONF_NAME[conference]} · ${freePos?"Free positioning":"By position"}${lobby?" · 🏀 Lobby "+groupCode(lobby.code):""}`;}
 function startDraft(){started=true;phase="draft";updateSummaries();showScreen("draft");renderAll();}
 function updateSummaries(){const s=summaryText();const a=$("#setupSummary"),b=$("#resSummary");if(a)a.textContent=s;if(b)b.textContent=s;
   if(lobby){const rs=$("#resSummary");const acts=rs&&rs.parentElement.querySelector(".ds-actions");if(acts&&!$("#cmpOpen")){const btn=document.createElement("button");btn.id="cmpOpen";btn.className="ds-clear";btn.style.borderColor="var(--action)";btn.style.color="var(--action)";btn.textContent="🏀 Compare with friends";btn.onclick=openLobbyCompare;acts.insertBefore(btn,acts.firstChild);}}}
-function fullReset(){roster={PG:null,SG:null,SF:null,PF:null,C:null,"6":null};rerollsLeft=1;started=false;spinning=false;currentTeam=null;movingSlot=null;pickSel=null;phase="draft";reg=null;po=null;poReveal=0;activeResTab="log";$("#results").innerHTML="";$("#poolCount").textContent=poolCount();showScreen("setup");renderAll();}
+function fullReset(){dailyMode=false;dailyTeams=null;roster={PG:null,SG:null,SF:null,PF:null,C:null,"6":null};rerollsLeft=1;started=false;spinning=false;currentTeam=null;movingSlot=null;pickSel=null;phase="draft";reg=null;po=null;poReveal=0;activeResTab="log";$("#results").innerHTML="";$("#poolCount").textContent=poolCount();showScreen("setup");renderAll();}
 
 /* ============================================================ MULTIPLAYER LOBBY (shared-seed, no backend) ============================================================ */
 const LB_YBASE=1962;
@@ -375,16 +376,19 @@ function renderPicker(){
   wrap.innerHTML=`<div class="reel" id="reel"><div class="placeholder">Spin for a team & season</div></div><div class="spin-cta"><button class="spinbtn" id="spinBtn" ${teams.length?"":"disabled"}>Spin the wheel</button></div>${teams.length?"":'<div class="foot-note" style="color:var(--loss)">No eligible team — Restart run to change the pool.</div>'}`;
   if(teams.length)$("#spinBtn").onclick=doSpin;
 }
-function doSpin(){const teams=spinnableTeams();if(!teams.length){renderPicker();return;}if(!started){started=true;applyLock();}
-  const finalTeam=teams[Math.floor(Math.random()*teams.length)];spinning=true;currentTeam=null;pickSel=null;renderPicker();
+function doSpin(){if(!started){started=true;applyLock();}
+  let finalTeam,cyc;
+  if(dailyMode){finalTeam=dailyTeams[dailyPickIndex()];if(!finalTeam){renderPicker();return;}cyc=TEAM_SEASONS;}
+  else{const teams=spinnableTeams();if(!teams.length){renderPicker();return;}finalTeam=teams[Math.floor(Math.random()*teams.length)];cyc=teams;}
+  spinning=true;currentTeam=null;pickSel=null;renderPicker();
   const rt=$("#reelTeam"),ry=$("#reelYr");const total=22;let i=0;
-  (function tick(){i++;const last=i>=total;const tt=last?finalTeam:teams[Math.floor(Math.random()*teams.length)];if(rt)rt.textContent=tt.team;if(ry)ry.textContent=`${tt.year-1}/${String(tt.year).slice(2)}`;if(last){const reel=$("#reel");if(reel){reel.classList.remove("spinning");reel.classList.add("landed");}setTimeout(()=>{spinning=false;currentTeam=finalTeam;renderPicker();},600);return;}setTimeout(tick,32+i*i*0.85);})();
+  (function tick(){i++;const last=i>=total;const tt=last?finalTeam:cyc[Math.floor(Math.random()*cyc.length)];if(rt)rt.textContent=tt.team;if(ry)ry.textContent=`${tt.year-1}/${String(tt.year).slice(2)}`;if(last){const reel=$("#reel");if(reel){reel.classList.remove("spinning");reel.classList.add("landed");}setTimeout(()=>{spinning=false;currentTeam=finalTeam;renderPicker();},600);return;}setTimeout(tick,32+i*i*0.85);})();
 }
 function draftPlayer(name,slot){const p=currentTeam.players.find(x=>x.n===name);if(!p||roster[slot])return;roster[slot]=Object.assign({},p,{tm:currentTeam.team,yr:currentTeam.year});currentTeam=null;pickSel=null;renderAll();}
 function renderAll(){$("#poolCount").textContent=poolCount();$("#rrCount").textContent=rerollsLeft;renderCourt();renderPicker();}
 
 /* ============================================================ SIM FLOW ============================================================ */
-function runSeason(){runSeed=lobby?(lobby.seed>>>0):((Math.floor(Math.random()*1e9))>>>0);reg=simulateLeague(runSeed);po=null;poReveal=0;phase="regular";activeResTab="log";updateSummaries();showScreen("results");if(simMode==="quick")afterRegular();else animateSeason();}
+function runSeason(){runSeed=dailyMode?dailySeed:(lobby?(lobby.seed>>>0):((Math.floor(Math.random()*1e9))>>>0));reg=simulateLeague(runSeed);po=null;poReveal=0;phase="regular";activeResTab="log";updateSummaries();showScreen("results");if(dailyMode){animateSeason(()=>setTimeout(showDailyResult,300));}else if(simMode==="quick")afterRegular();else animateSeason();}
 function animateSeason(onDone){const $r=$("#results");
   $r.innerHTML=`<div class="arena"><div class="arena-head"><div class="arena-meta">Game <b id="ar-gnum">0</b> / 82</div><div class="arena-ctrls"><button id="ar-skip">Skip to results &rarr;</button></div></div><div class="arena-body"><div class="arena-game"><div class="arena-opp" id="ar-opp">&nbsp;</div><div class="ar-score" id="ar-score">0&ndash;0</div><div class="ar-lead" id="ar-lead">&nbsp;</div></div><div class="arena-rec"><div class="r"><span class="w" id="ar-recW">0</span>&ndash;<span class="l" id="ar-recL">0</span></div><div class="cap">Record</div><div class="arena-stamp" id="ar-stamp">&nbsp;</div></div></div><div class="arena-streak" id="ar-streak"></div><div class="arena-bar"><div id="ar-barfill"></div></div></div>`;
   $r.scrollIntoView({behavior:"smooth",block:"start"});
@@ -657,8 +661,39 @@ function playRivalry(gm,done){
 
 /* ============================================================ WIRE UP ============================================================ */
 $("#sim").addEventListener("click",()=>{if(!mpRoom&&rosterFull())runSeason();});
+/* ============================================================ DAILY CHALLENGE ============================================================ */
+let dailyMode=false,dailyTeams=null,dailySeed=0,dailyNum=0;
+const DAILY_EPOCH=Date.UTC(2026,0,1);
+function dailyKey(){const d=new Date();return d.getUTCFullYear()*10000+(d.getUTCMonth()+1)*100+d.getUTCDate();}
+function startDaily(){
+  dailySeed=hashSeed("daily",dailyKey())>>>0;
+  const n=new Date();dailyNum=Math.floor((Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate())-DAILY_EPOCH)/86400000)+1;
+  minYr=YMIN;maxYr=YMAX;conference=(dailyNum%2)?"E":"W";freePos=true;
+  const rng=mulberry32(dailySeed),pool=TEAM_SEASONS.filter(t=>t.players&&t.players.length),seq=[],used=new Set();let guard=0;
+  while(seq.length<6&&guard++<800){const t=pool[Math.floor(rng()*pool.length)],k=t.team+"|"+t.year;if(!used.has(k)){used.add(k);seq.push(t);}}
+  dailyTeams=seq;dailyMode=true;lobby=null;
+  roster={PG:null,SG:null,SF:null,PF:null,C:null,"6":null};rerollsLeft=0;spinning=false;currentTeam=null;pickSel=null;movingSlot=null;
+  started=true;applyLock();showScreen("draft");renderAll();
+}
+function dailyPickIndex(){return Object.values(roster).filter(Boolean).length;}
+function dailyShareText(){const me=((reg&&reg.teams)||[]).find(t=>t.isYou),seed=me?me.seed:0,W=reg.W,L=reg.L;
+  const wr=W/((W+L)||1),cells=10,fill=Math.max(0,Math.min(cells,Math.round(wr*cells))),bar="\u{1F7E9}".repeat(fill)+"\u2B1C".repeat(cells-fill);
+  let url="";try{url=(location.origin&&location.origin!=="null")?location.origin+location.pathname.replace(/[^/]*$/,""):"";}catch(e){}
+  return `\u{1F3C0} 82-0 Daily #${dailyNum}\n${W}\u2013${L} \u00b7 ${ordinal(seed)} seed${W===82?" \u00b7 PERFECT \u{1F3C6}":""}\n${bar}${url?"\n"+url:""}`;
+}
+function showDailyResult(){if(!reg)return;const me=(reg.teams||[]).find(t=>t.isYou),seed=me?me.seed:0,W=reg.W,L=reg.L;
+  let streak=1,best=W+"\u2013"+L;
+  try{const store=JSON.parse(localStorage.getItem("d82_state")||"{}");store.days=store.days||{};const tk=dailyKey();
+    if(!store.days[tk]){store.days[tk]={W,L,seed};const y=new Date();y.setUTCDate(y.getUTCDate()-1);const yk=y.getUTCFullYear()*10000+(y.getUTCMonth()+1)*100+y.getUTCDate();
+      store.streak=(store.lastKey===yk)?((store.streak||0)+1):1;store.lastKey=tk;if(!store.best||W>store.best.W)store.best={W,L};localStorage.setItem("d82_state",JSON.stringify(store));}
+    streak=store.streak||1;best=store.best?store.best.W+"\u2013"+store.best.L:best;}catch(e){}
+  const wr=W/((W+L)||1),cells=10,fill=Math.max(0,Math.min(cells,Math.round(wr*cells))),bar="\u{1F7E9}".repeat(fill)+"\u2B1C".repeat(cells-fill);
+  const share=dailyShareText(),root=$("#modalRoot");if(!root)return;
+  root.innerHTML=`<div class="lbm-bg" id="dqBg"><div class="lbm dq-modal"><div class="dq-tag">\u{1F5D3}\uFE0F Daily Challenge #${dailyNum}</div><div class="dq-rec">${W}\u2013${L}</div><div class="dq-sub">${conference==="E"?"East":"West"} \u00b7 ${ordinal(seed)} seed${W===82?" \u00b7 PERFECT SEASON \u{1F3C6}":""}</div><div class="dq-bar">${bar}</div><div class="dq-meta">Streak: <b>${streak}</b> day${streak===1?"":"s"} \u00b7 Best: <b>${best}</b></div><button class="lbm-btn" id="dqCopy">Copy result to share</button><button class="lbm-btn sec" id="dqClose" style="margin-top:8px">See standings</button></div></div>`;
+  $("#dqClose").onclick=()=>{root.innerHTML="";};$("#dqBg").onclick=(e)=>{if(e.target.id==="dqBg")root.innerHTML="";};
+  $("#dqCopy").onclick=()=>{const b=$("#dqCopy");if(navigator.clipboard){navigator.clipboard.writeText(share).then(()=>{b.textContent="Copied! \u2713";},()=>{b.textContent="Press \u2318/Ctrl+C";});}else{b.textContent="Copy not supported";}};
+}
+
 initControls();applyLock();
-const _lb=parseHashLobby();
-if(_lb){applyLobby(_lb);if(mpInit()){mpHeader(_lb);showScreen("lobby");mpJoin(_lb);}else{showScreen("setup");}}
-else{showScreen("setup");}
-renderAll();
+if(/daily/i.test(location.hash||"")){startDaily();}
+else{const _lb=parseHashLobby();if(_lb){applyLobby(_lb);if(mpInit()){mpHeader(_lb);showScreen("lobby");mpJoin(_lb);}else{showScreen("setup");}}else{showScreen("setup");}renderAll();}

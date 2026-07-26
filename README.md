@@ -10,6 +10,7 @@ A browser game where you build a six‑man superteam from any era of NBA history
 
 ## Highlights
 
+- **Daily Challenge** — a date‑seeded puzzle every day: everyone worldwide drafts from the same six team‑seasons against the same league, then shares a Wordle‑style result line. Tracks your streak and best.
 - **Spin & draft** — spin the wheel for a random team‑season, pick one player, repeat until you have a starting five plus a sixth man. Choose strict positions or **free** (positionless) lineups.
 - **Coherent season sim** — your team is dropped into a 31‑team league and plays a balanced 82‑game schedule, watchable game‑by‑game, followed by seeded playoffs and league‑wide awards.
 - **Deep player pool** — curated iconic squads from 1962–2026 **plus** the full 30‑team league for every season from 2016–2024: ~2,500 players across ~289 team‑seasons, with real per‑game stats.
@@ -102,6 +103,7 @@ It's a static site — no build step, no dependencies to install.
 | `game.js` | Engine, UI, and multiplayer logic |
 
 All files must be hosted **together** in the same folder. Load order matters and is already wired in the HTML: Firebase → `styles.css` → `rosters.js` (defines the data) → `game.js` (reads it). Adding new team‑seasons is just a matter of appending to `rosters.js`.
+
 ---
 
 ## Tech
