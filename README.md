@@ -101,10 +101,20 @@ It's a static site — no build step, no dependencies to install.
 | `styles.css` | All game styling |
 | `rosters.js` | The player/team dataset (`window.EXTRA_TEAM_SEASONS`) |
 | `game.js` | Engine, UI, and multiplayer logic |
+| `analytics.js` | PostHog loader — paste your project key to enable (off until then) |
+| `manifest.webmanifest` + `icon-*.png` | Home‑screen install (app icon + metadata) |
 
 All files must be hosted **together** in the same folder. Load order matters and is already wired in the HTML: Firebase → `styles.css` → `rosters.js` (defines the data) → `game.js` (reads it). Adding new team‑seasons is just a matter of appending to `rosters.js`.
 
 ---
+
+## Install on your phone
+
+No app store needed — it installs from the browser like a real app:
+
+**iPhone/iPad (Safari):** open the site → tap **Share** (the square with the up arrow) → scroll down → **Add to Home Screen**. It launches full‑screen with the 82‑0 icon.
+
+**Android (Chrome):** open the site → menu (⋮) → **Install app** / **Add to Home screen**.
 
 ## Tech
 
