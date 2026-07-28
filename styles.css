@@ -276,3 +276,8 @@
 .dq-sub{font-family:"IBM Plex Mono";font-size:13px;color:var(--muted);margin:4px 0 12px}
 .dq-bar{font-size:20px;letter-spacing:2px;margin-bottom:12px}
 .dq-meta{font-family:"IBM Plex Mono";font-size:12px;color:var(--muted);margin-bottom:16px}
+
+/* Out-of-position indicator */
+.spot.oop .nm{color:var(--loss)}
+.spot.oop .disc{border-color:var(--loss)}
+.oop-tag{position:absolute;bottom:-7px;left:50%;transform:translateX(-50%);background:var(--loss);color:#2a0b10;font-family:"IBM Plex Mono";font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:1px 5px;border-radius:6px;white-space:nowrap;pointer-events:none}

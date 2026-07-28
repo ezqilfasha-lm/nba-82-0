@@ -128,10 +128,17 @@ const clamp=(x,lo,hi)=>Math.max(lo,Math.min(hi,x));
 function offI(p){return clamp(p.imp+(p.ppg-18)*0.45+(p.apg-4)*0.6,60,106);}
 function defI(p){return clamp(p.imp+(p.rpg-8)*0.7-(p.ppg-18)*0.12+(p.pos==="C"?4:p.pos==="PF"?2:0),60,106);}
 function slotPos(k,pl){return k==="6"?pl.pos:k;} // unit weights use the slot the player occupies
+const POS_ORD={PG:0,SG:1,SF:2,PF:3,C:4};
+const FIT_STEP=0.07, FIT_FLOOR=0.7;
+/* Position fit: 1.0 when a player is in one of his natural positions, dropping with
+   distance from the nearest one (guard-at-center = big hit), floored at 0.7. The
+   sixth man is a flex bench role, so he's exempt. Only bites in free positioning,
+   since strict mode already restricts placement to eligible positions. */
+function posFit(pl,k){if(k==="6")return 1;const tgt=POS_ORD[k];if(tgt==null)return 1;let d=99;eligPositions(pl).forEach(e=>{if(POS_ORD[e]!=null)d=Math.min(d,Math.abs(tgt-POS_ORD[e]));});if(d===99)d=0;return clamp(1-FIT_STEP*d,FIT_FLOOR,1);}
 function unitProfile(){
   const entries=SLOT_DEFS.map(d=>({k:d.key,p:roster[d.key],w:d.key==="6"?0.5:1}));
   let oN=0,oD=0,dN=0,dD=0,apgW=0,rpgW=0,wsum=0;
-  entries.forEach(({k,p,w})=>{const pos=slotPos(k,p);const ow=OFFW[pos]*w,dw=DEFW[pos]*w;oN+=offI(p)*ow;oD+=ow;dN+=defI(p)*dw;dD+=dw;apgW+=p.apg*w;rpgW+=p.rpg*w;wsum+=w;});
+  entries.forEach(({k,p,w})=>{const pos=slotPos(k,p);const f=posFit(p,k);const ow=OFFW[pos]*w,dw=DEFW[pos]*w;oN+=offI(p)*f*ow;oD+=ow;dN+=defI(p)*f*dw;dD+=dw;apgW+=p.apg*w;rpgW+=p.rpg*w;wsum+=w;});
   return {O:oN/oD, D:dN/dD, apg:apgW/wsum, rpg:rpgW/wsum};
 }
 
@@ -253,7 +260,7 @@ function initControls(){
   $("#poolCount").textContent=poolCount();
 }
 function summaryText(){return `${dailyMode?"\u{1F5D3}\uFE0F Daily #"+dailyNum+" · ":""}${minYr===maxYr?minYr:minYr+"–"+maxYr} · ${CONF_NAME[conference]} · ${freePos?"Free positioning":"By position"}${lobby?" · 🏀 Lobby "+groupCode(lobby.code):""}`;}
-function startDraft(){started=true;phase="draft";updateSummaries();showScreen("draft");renderAll();}
+function startDraft(){track("draft_started",{mode:dailyMode?"daily":(mpRoom?"multiplayer":"freestyle")});started=true;phase="draft";updateSummaries();showScreen("draft");renderAll();}
 function updateSummaries(){const s=summaryText();const a=$("#setupSummary"),b=$("#resSummary");if(a)a.textContent=s;if(b)b.textContent=s;
   if(lobby){const rs=$("#resSummary");const acts=rs&&rs.parentElement.querySelector(".ds-actions");if(acts&&!$("#cmpOpen")){const btn=document.createElement("button");btn.id="cmpOpen";btn.className="ds-clear";btn.style.borderColor="var(--action)";btn.style.color="var(--action)";btn.textContent="🏀 Compare with friends";btn.onclick=openLobbyCompare;acts.insertBefore(btn,acts.firstChild);}}}
 function fullReset(){dailyMode=false;dailyTeams=null;roster={PG:null,SG:null,SF:null,PF:null,C:null,"6":null};rerollsLeft=1;started=false;spinning=false;currentTeam=null;movingSlot=null;pickSel=null;phase="draft";reg=null;po=null;poReveal=0;activeResTab="log";$("#results").innerHTML="";$("#poolCount").textContent=poolCount();showScreen("setup");renderAll();}
@@ -309,8 +316,9 @@ function applyLock(){$("#rrCount").textContent=rerollsLeft;}
 function renderCourt(){
   const spots=$("#spots");spots.innerHTML="";
   ["PG","SG","SF","PF","C"].forEach(k=>{const p=roster[k];const xy=SPOT_XY[k];const el=document.createElement("div");
-    el.className="spot "+roleClass(k)+(p?" filled":"")+(p&&movableTargets(k).length?" movable":"");el.style.top=xy.t+"%";el.style.left=xy.l+"%";
-    if(p){el.innerHTML=avatar(p,44)+`<div class="nm">${shortName(p.n)}</div><div class="lbl">${k} · ${p.imp}</div>`+(movableTargets(k).length?`<span class="mvpip">⇄</span>`:"");
+    const oop=p&&posFit(p,k)<1;
+    el.className="spot "+roleClass(k)+(p?" filled":"")+(oop?" oop":"")+(p&&movableTargets(k).length?" movable":"");el.style.top=xy.t+"%";el.style.left=xy.l+"%";
+    if(p){el.innerHTML=avatar(p,44)+`<div class="nm">${shortName(p.n)}</div><div class="lbl">${k} · ${p.imp}</div>`+(oop?`<span class="oop-tag" title="Out of position — ${p.n} plays ${eligPositions(p).join("/")}. Rating penalty applied.">off&#8209;pos</span>`:"")+(movableTargets(k).length?`<span class="mvpip">⇄</span>`:"");
       if(movableTargets(k).length)el.onclick=()=>{movingSlot=movingSlot===k?null:k;renderCourt();renderMovebar();};}
     else{el.innerHTML=`<div class="disc">${k}</div><div class="lbl">${POS_FULL[k]}</div>`;}
     spots.appendChild(el);});
@@ -390,7 +398,7 @@ function draftPlayer(name,slot){const p=currentTeam.players.find(x=>x.n===name);
 function renderAll(){$("#poolCount").textContent=poolCount();$("#rrCount").textContent=rerollsLeft;renderCourt();renderPicker();}
 
 /* ============================================================ SIM FLOW ============================================================ */
-function runSeason(){runSeed=dailyMode?dailySeed:(lobby?(lobby.seed>>>0):((Math.floor(Math.random()*1e9))>>>0));reg=simulateLeague(runSeed);po=null;poReveal=0;phase="regular";activeResTab="log";updateSummaries();showScreen("results");if(dailyMode){animateSeason(()=>setTimeout(showDailyResult,300));}else if(simMode==="quick")afterRegular();else animateSeason();}
+function runSeason(){runSeed=dailyMode?dailySeed:(lobby?(lobby.seed>>>0):((Math.floor(Math.random()*1e9))>>>0));reg=simulateLeague(runSeed);track("season_simulated",{mode:dailyMode?"daily":"solo",wins:reg.W,losses:reg.L,era:minYr+"-"+maxYr,conference:conference,positioning:freePos?"free":"strict",perfect:reg.W===82});po=null;poReveal=0;phase="regular";activeResTab="log";updateSummaries();showScreen("results");if(dailyMode){animateSeason(()=>setTimeout(showDailyResult,300));}else if(simMode==="quick")afterRegular();else animateSeason();}
 function animateSeason(onDone){const $r=$("#results");
   $r.innerHTML=`<div class="arena"><div class="arena-head"><div class="arena-meta">Game <b id="ar-gnum">0</b> / 82</div><div class="arena-ctrls"><button id="ar-skip">Skip to results &rarr;</button></div></div><div class="arena-body"><div class="arena-game"><div class="arena-opp" id="ar-opp">&nbsp;</div><div class="ar-score" id="ar-score">0&ndash;0</div><div class="ar-lead" id="ar-lead">&nbsp;</div></div><div class="arena-rec"><div class="r"><span class="w" id="ar-recW">0</span>&ndash;<span class="l" id="ar-recL">0</span></div><div class="cap">Record</div><div class="arena-stamp" id="ar-stamp">&nbsp;</div></div></div><div class="arena-streak" id="ar-streak"></div><div class="arena-bar"><div id="ar-barfill"></div></div></div>`;
   $r.scrollIntoView({behavior:"smooth",block:"start"});
@@ -527,7 +535,7 @@ function mpHeader(l){const c=$("#mpCodeShow");if(c)c.textContent=groupCode(l.cod
 function mpJoin(l){mpCode=l.code;
   mpAuth.onAuthStateChanged(user=>{if(!user||mpJoined)return;mpJoined=true;mpUid=user.uid;mpRoom=mpDb.ref("rooms/"+mpCode);
     mpRoom.child("settings").once("value").then(s=>{
-      if(!s.exists())mpRoom.child("settings").set({seed:l.seed,eraFrom:l.from,eraTo:l.to,conf:l.conf,hostId:mpUid,status:"waiting",createdAt:Date.now()}).catch(()=>{});
+      if(!s.exists()){mpRoom.child("settings").set({seed:l.seed,eraFrom:l.from,eraTo:l.to,conf:l.conf,hostId:mpUid,status:"waiting",createdAt:Date.now()}).catch(()=>{});track("lobby_created",{code:mpCode});}else{track("lobby_joined",{code:mpCode});}
       const meRef=mpRoom.child("players/"+mpUid);
       meRef.update({name:(window._lbName||"Player"),ready:false,joinedAt:Date.now()}).catch(()=>{});
       meRef.onDisconnect().remove();
@@ -570,7 +578,7 @@ function mpTickTimer(){const el=$("#draftTimer");
   if(mpTimeLeft<=0){clearInterval(mpTimer);if(el){el.textContent="\u23f1 Time! Auto-filled";el.classList.remove("low");}autoFillRoster();return;}
   if(el){el.textContent="\u23f1 "+mpFmt(mpTimeLeft)+" to draft";el.classList.toggle("low",mpTimeLeft<=15);}
   mpTimeLeft--;}
-function buildLobbyUnit(six,name,conf,uid,isYou){let oN=0,oD=0,dN=0,dD=0,apgW=0,rpgW=0,wsum=0;six.forEach(e=>{const w=e.slot==="6"?0.5:1;const pos=e.slot==="6"?(e.pos||"SF"):e.slot;const ow=OFFW[pos]*w,dw=DEFW[pos]*w;oN+=offI(e)*ow;oD+=ow;dN+=defI(e)*dw;dD+=dw;apgW+=(e.apg||0)*w;rpgW+=(e.rpg||0)*w;wsum+=w;});const O=oN/oD,D=dN/dD;return {name:name||"Player",conf,isYou,uid,lobby:true,O,D,prof:{O,D,apg:apgW/wsum,rpg:rpgW/wsum},six,cheat:isDreamSix(six),rating:(O+D)/2,wins:0,losses:0,gp:0};}
+function buildLobbyUnit(six,name,conf,uid,isYou){let oN=0,oD=0,dN=0,dD=0,apgW=0,rpgW=0,wsum=0;six.forEach(e=>{const w=e.slot==="6"?0.5:1;const pos=e.slot==="6"?(e.pos||"SF"):e.slot;const f=posFit(e,e.slot);const ow=OFFW[pos]*w,dw=DEFW[pos]*w;oN+=offI(e)*f*ow;oD+=ow;dN+=defI(e)*f*dw;dD+=dw;apgW+=(e.apg||0)*w;rpgW+=(e.rpg||0)*w;wsum+=w;});const O=oN/oD,D=dN/dD;return {name:name||"Player",conf,isYou,uid,lobby:true,O,D,prof:{O,D,apg:apgW/wsum,rpg:rpgW/wsum},six,cheat:isDreamSix(six),rating:(O+D)/2,wins:0,losses:0,gp:0};}
 function simulateLeagueMP(seed,lobbyTeams){
   const teams=NBA_TEAMS.map(t=>({name:t.name,conf:t.conf,rating:t.rating,O:t.rating,D:t.rating,isYou:false,lobby:false,wins:0,losses:0,gp:0})).concat(lobbyTeams);
   const rng=mulberry32(seed),g=gaussFrom(rng);const sched=[];
@@ -596,7 +604,7 @@ function simulateLeagueMP(seed,lobbyTeams){
   return {seed,you:me,prof:me?me.prof:unitProfile(),W,L,games:yourGames,pf,pa,confs,teams,playerStats,league,sixth:playerStats[5],mp:true};
 }
 function tryRunMP(room){const s=room.settings||{},players=room.players||{};let lineup=(s.lineup&&s.lineup.length)?s.lineup.slice():Object.keys(players).filter(id=>players[id].drafted);lineup=lineup.slice().sort();if(!lineup.length)return;if(!lineup.every(id=>players[id]&&players[id].roster))return;if(!lineup.includes(mpUid)){mpRan=true;const sim=$("#sim");if(sim){sim.disabled=true;sim.textContent="Season started without you \u2014 you didn't draft in time";}return;}mpRan=true;mpLobbyTeams=lineup.map(id=>buildLobbyUnit(mpRosterArr(players[id].roster),players[id].name,(s.conf||conference),id,id===mpUid));runSeasonMP();}
-function runSeasonMP(){runSeed=(lobby?lobby.seed:0)>>>0;reg=simulateLeagueMP(runSeed,mpLobbyTeams);po=null;poReveal=0;phase="regular";activeResTab="log";started=true;updateSummaries();showScreen("results");animateSeason(()=>setTimeout(showChampionPopup,300));}
+function runSeasonMP(){runSeed=(lobby?lobby.seed:0)>>>0;reg=simulateLeagueMP(runSeed,mpLobbyTeams);track("season_simulated",{mode:"multiplayer",players:mpLobbyTeams.length,wins:reg.W,losses:reg.L,perfect:reg.W===82});po=null;poReveal=0;phase="regular";activeResTab="log";started=true;updateSummaries();showScreen("results");animateSeason(()=>setTimeout(showChampionPopup,300));}
 function ordSafe(n){try{return ordinal(n);}catch(e){return "#"+n;}}
 function showChampionPopup(){if(!reg||!reg.teams)return;const lob=reg.teams.filter(t=>t.lobby).slice().sort((a,b)=>b.wins-a.wins||a.seed-b.seed);if(!lob.length)return;const champ=lob[0],youWon=!!champ.isYou,myIdx=lob.findIndex(t=>t.isYou);
   const rows=lob.map((t,i)=>`<div class="ch-row${t.isYou?" me":""}${i===0?" champ":""}"><span class="ch-rank">${i===0?"\u{1F451}":"#"+(i+1)}</span><span class="ch-nm">${mpEsc(t.name)}${t.isYou?' <span class="mp-youtag">you</span>':""}</span><span class="ch-rec">${t.wins}\u2013${t.losses}</span><span class="ch-seed">${t.conf==="E"?"East":"West"} ${ordSafe(t.seed)}</span></div>`).join("");
@@ -663,6 +671,9 @@ function playRivalry(gm,done){
 
 /* ============================================================ WIRE UP ============================================================ */
 $("#sim").addEventListener("click",()=>{if(!mpRoom&&rosterFull())runSeason();});
+/* ---- Analytics (no-op unless analytics.js configured with a key) ---- */
+function track(e,p){try{window.posthog&&window.posthog.capture&&window.posthog.capture(e,p||{});}catch(_){}}
+
 /* ---- Shareable result card (canvas image) ---- */
 async function buildShareCanvas(){
   try{if(document.fonts&&document.fonts.ready)await document.fonts.ready;}catch(e){}
@@ -688,7 +699,7 @@ async function buildShareCanvas(){
   x.fillText("Can you beat it?"+(host?"  \u00b7  "+host:""),W/2,1015);
   return c;
 }
-function shareCard(){if(!reg)return;buildShareCanvas().then(c=>{c.toBlob(async(blob)=>{if(!blob)return;const file=new File([blob],"82-0-result.png",{type:"image/png"});
+function shareCard(){if(!reg)return;track("result_shared",{type:"image",mode:dailyMode?"daily":(mpRoom?"multiplayer":"solo")});buildShareCanvas().then(c=>{c.toBlob(async(blob)=>{if(!blob)return;const file=new File([blob],"82-0-result.png",{type:"image/png"});
   try{if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:"82-0 \u00b7 The Perfect Season"});return;}}catch(e){}
   const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="82-0-result.png";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);
   },"image/png");}).catch(()=>{});}
@@ -714,6 +725,7 @@ function dailyShareText(){const me=((reg&&reg.teams)||[]).find(t=>t.isYou),seed=
   return `\u{1F3C0} 82-0 Daily #${dailyNum}\n${W}\u2013${L} \u00b7 ${ordinal(seed)} seed${W===82?" \u00b7 PERFECT \u{1F3C6}":""}\n${bar}${url?"\n"+url:""}`;
 }
 function showDailyResult(){if(!reg)return;const me=(reg.teams||[]).find(t=>t.isYou),seed=me?me.seed:0,W=reg.W,L=reg.L;
+  track("daily_completed",{daily:dailyNum,wins:W,losses:L,seed:seed,perfect:W===82});
   let streak=1,best=W+"\u2013"+L;
   try{const store=JSON.parse(localStorage.getItem("d82_state")||"{}");store.days=store.days||{};const tk=dailyKey();
     if(!store.days[tk]){store.days[tk]={W,L,seed};const y=new Date();y.setUTCDate(y.getUTCDate()-1);const yk=y.getUTCFullYear()*10000+(y.getUTCMonth()+1)*100+y.getUTCDate();
@@ -723,7 +735,7 @@ function showDailyResult(){if(!reg)return;const me=(reg.teams||[]).find(t=>t.isY
   const share=dailyShareText(),root=$("#modalRoot");if(!root)return;
   root.innerHTML=`<div class="lbm-bg" id="dqBg"><div class="lbm dq-modal"><div class="dq-tag">\u{1F5D3}\uFE0F Daily Challenge #${dailyNum}</div><div class="dq-rec">${W}\u2013${L}</div><div class="dq-sub">${conference==="E"?"East":"West"} \u00b7 ${ordinal(seed)} seed${W===82?" \u00b7 PERFECT SEASON \u{1F3C6}":""}</div><div class="dq-bar">${bar}</div><div class="dq-meta">Streak: <b>${streak}</b> day${streak===1?"":"s"} \u00b7 Best: <b>${best}</b></div><button class="lbm-btn" id="dqCopy">Copy result to share</button><button class="lbm-btn sec" id="dqImg" style="margin-top:8px">Save image</button><button class="lbm-btn sec" id="dqClose" style="margin-top:8px">See standings</button></div></div>`;
   $("#dqClose").onclick=()=>{root.innerHTML="";};$("#dqBg").onclick=(e)=>{if(e.target.id==="dqBg")root.innerHTML="";};$("#dqImg").onclick=shareCard;
-  $("#dqCopy").onclick=()=>{const b=$("#dqCopy");if(navigator.clipboard){navigator.clipboard.writeText(share).then(()=>{b.textContent="Copied! \u2713";},()=>{b.textContent="Press \u2318/Ctrl+C";});}else{b.textContent="Copy not supported";}};
+  $("#dqCopy").onclick=()=>{track("result_shared",{type:"text",mode:"daily"});const b=$("#dqCopy");if(navigator.clipboard){navigator.clipboard.writeText(share).then(()=>{b.textContent="Copied! \u2713";},()=>{b.textContent="Press \u2318/Ctrl+C";});}else{b.textContent="Copy not supported";}};
 }
 
 initControls();applyLock();
