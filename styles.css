@@ -281,3 +281,37 @@
 .spot.oop .nm{color:var(--loss)}
 .spot.oop .disc{border-color:var(--loss)}
 .oop-tag{position:absolute;bottom:-7px;left:50%;transform:translateX(-50%);background:var(--loss);color:#2a0b10;font-family:"IBM Plex Mono";font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:1px 5px;border-radius:6px;white-space:nowrap;pointer-events:none}
+
+/* ===== Multiplayer: Play a Friend entry ===== */
+.mpe-wrap{max-width:520px;margin:60px auto 0;text-align:center;padding:0 18px}
+.mpe-badge{display:inline-block;font-family:"IBM Plex Mono";font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.14em;color:var(--win);border:1px solid var(--line);border-radius:20px;padding:5px 14px;margin-bottom:18px}
+.mpe-h{font-family:"Anton";font-weight:400;font-size:clamp(40px,9vw,68px);line-height:.95;margin:0 0 10px;color:var(--ink)}
+.mpe-sub{font-family:"Oswald";font-size:16px;color:var(--muted);margin:0 auto 28px;max-width:420px}
+.mpe-lbl{display:block;text-align:left;font-family:"IBM Plex Mono";font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:6px}
+.mpe-name{width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;color:var(--ink);font-family:"Oswald";font-size:18px;padding:14px 16px;margin-bottom:20px;box-sizing:border-box}
+.mpe-new{width:100%;background:var(--win);color:#06231a;border:none;border-radius:12px;font-family:"Oswald";font-weight:700;font-size:20px;padding:18px;cursor:pointer}.mpe-new:hover{filter:brightness(1.05)}
+.mpe-hint{font-family:"IBM Plex Mono";font-size:12px;color:var(--dim);margin:12px 0 18px}
+.mpe-join{width:100%;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:12px;font-family:"Oswald";font-weight:600;font-size:18px;padding:16px;cursor:pointer}.mpe-join:hover{border-color:var(--muted)}
+.mpe-joinrow{display:flex;gap:8px;margin-top:10px}
+.mpe-code{flex:1;background:var(--court);border:1px solid var(--line);border-radius:10px;color:var(--ink);font-family:"Anton";font-size:22px;letter-spacing:.2em;text-align:center;text-transform:uppercase;padding:12px}
+.mpe-go{background:var(--led);color:#0c0f14;border:none;border-radius:10px;font-family:"Oswald";font-weight:700;font-size:16px;padding:0 20px;cursor:pointer}
+.mpe-err{color:var(--loss);font-family:"IBM Plex Mono";font-size:12px;margin-top:12px}
+.mpe-solo{display:inline-block;margin-top:26px;color:var(--muted);font-family:"Oswald";font-size:16px;text-decoration:none}.mpe-solo:hover{color:var(--ink)}
+
+/* ===== Multiplayer: lobby room-code header + settings ===== */
+.mp-roomlbl{font-family:"IBM Plex Mono";font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);text-align:center;margin-bottom:4px}
+.mp-code{font-family:"Anton";font-weight:400;font-size:44px;letter-spacing:.22em;color:var(--led);text-align:center;line-height:1;margin-bottom:14px}
+.mp-codebtns{display:flex;gap:8px;justify-content:center;margin-bottom:6px}
+.mp-cbtn{background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:9px;font-family:"Oswald";font-weight:600;font-size:14px;padding:10px 18px;cursor:pointer}.mp-cbtn:hover{border-color:var(--muted)}
+.mp-cbtn.share{border-color:var(--win);color:var(--win)}
+.mp-codehint{font-family:"IBM Plex Mono";font-size:11px;color:var(--dim);text-align:center;margin-bottom:18px}
+.mp-sec{font-family:"IBM Plex Mono";font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:16px 0 8px;text-align:left}.mp-sec span{color:var(--dim);text-transform:none;letter-spacing:0}
+.mp-setrow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;flex-wrap:wrap}
+.mp-slbl{font-family:"IBM Plex Mono";font-size:11px;color:var(--muted)}
+.mp-era button{font-size:12px;padding:7px 10px}
+
+/* ===== Multiplayer: create reveal ===== */
+.cr-modal{text-align:center;max-width:400px}
+.cr-lbl{font-family:"IBM Plex Mono";font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--win);margin-bottom:8px}
+.cr-code{font-family:"Anton";font-weight:400;font-size:56px;letter-spacing:.2em;color:var(--led);animation:pop .4s ease}
+.cr-sub{font-family:"IBM Plex Mono";font-size:12px;color:var(--muted);margin-top:10px}

@@ -381,7 +381,7 @@ let lbConf='W';
 document.querySelectorAll('#lbConf button').forEach(b=>b.onclick=()=>{lbConf=b.dataset.c;document.querySelectorAll('#lbConf button').forEach(x=>x.classList.toggle('on',x===b));});
 
 /* ---------- modal controls ---------- */
-function openLobby(){document.getElementById('lobbyBg').classList.add('on');}
+function openLobby(){location.href='nba-perfect-season.html#mp';}
 function closeLobby(){document.getElementById('lobbyBg').classList.remove('on');}
 document.getElementById('lobbyBg').addEventListener('click',e=>{if(e.target.id==='lobbyBg')closeLobby();});
 function lobbyTab(t){

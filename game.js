@@ -243,7 +243,7 @@ function buildPBP(gm){const r=mulberry32(hashSeed(runSeed,gm.oppName,gm.mine,gm.
 }
 
 /* ============================================================ DRAFT / SETUP UI ============================================================ */
-function showScreen(n){screen=n;$("#setupScreen").style.display=n==="setup"?"":"none";$("#draftScreen").style.display=n==="draft"?"":"none";$("#resultsScreen").style.display=n==="results"?"":"none";const ls=$("#lobbyScreen");if(ls)ls.style.display=n==="lobby"?"":"none";$("#restartRun").style.display=(n==="setup"||n==="lobby")?"none":"";window.scrollTo({top:0,behavior:"smooth"});}
+function showScreen(n){screen=n;$("#setupScreen").style.display=n==="setup"?"":"none";$("#draftScreen").style.display=n==="draft"?"":"none";$("#resultsScreen").style.display=n==="results"?"":"none";const ls=$("#lobbyScreen");if(ls)ls.style.display=n==="lobby"?"":"none";const me=$("#mpEntryScreen");if(me)me.style.display=n==="mpentry"?"":"none";$("#restartRun").style.display=(n==="setup"||n==="lobby"||n==="mpentry")?"none":"";window.scrollTo({top:0,behavior:"smooth"});}
 function initControls(){
   const from=$("#from"),to=$("#to");SEASON_YEARS.forEach(y=>{from.appendChild(new Option(y,y));to.appendChild(new Option(y,y));});
   minYr=YMIN;maxYr=YMAX;from.value=minYr;to.value=maxYr;
@@ -261,25 +261,17 @@ function initControls(){
 }
 function summaryText(){return `${dailyMode?"\u{1F5D3}\uFE0F Daily #"+dailyNum+" · ":""}${minYr===maxYr?minYr:minYr+"–"+maxYr} · ${CONF_NAME[conference]} · ${freePos?"Free positioning":"By position"}${lobby?" · 🏀 Lobby "+groupCode(lobby.code):""}`;}
 function startDraft(){track("draft_started",{mode:dailyMode?"daily":(mpRoom?"multiplayer":"freestyle")});started=true;phase="draft";updateSummaries();showScreen("draft");renderAll();}
-function updateSummaries(){const s=summaryText();const a=$("#setupSummary"),b=$("#resSummary");if(a)a.textContent=s;if(b)b.textContent=s;
-  if(lobby){const rs=$("#resSummary");const acts=rs&&rs.parentElement.querySelector(".ds-actions");if(acts&&!$("#cmpOpen")){const btn=document.createElement("button");btn.id="cmpOpen";btn.className="ds-clear";btn.style.borderColor="var(--action)";btn.style.color="var(--action)";btn.textContent="🏀 Compare with friends";btn.onclick=openLobbyCompare;acts.insertBefore(btn,acts.firstChild);}}}
+function updateSummaries(){const s=summaryText();const a=$("#setupSummary"),b=$("#resSummary");if(a)a.textContent=s;if(b)b.textContent=s;}
 function fullReset(){dailyMode=false;dailyTeams=null;roster={PG:null,SG:null,SF:null,PF:null,C:null,"6":null};rerollsLeft=1;started=false;spinning=false;currentTeam=null;movingSlot=null;pickSel=null;phase="draft";reg=null;po=null;poReveal=0;activeResTab="log";$("#results").innerHTML="";$("#poolCount").textContent=poolCount();showScreen("setup");renderAll();}
 
 /* ============================================================ MULTIPLAYER LOBBY (shared-seed, no backend) ============================================================ */
-const LB_YBASE=1962;
-function encLobby(seed,from,to,conf){return ((seed>>>0).toString(36).padStart(7,"0")+(from-LB_YBASE).toString(36).padStart(2,"0")+(to-LB_YBASE).toString(36).padStart(2,"0")+(conf==="W"?"W":"E")).toUpperCase();}
-function decLobby(code){code=(code||"").toUpperCase().replace(/[^0-9A-Z]/g,"");if(code.length<12)return null;const seed=parseInt(code.slice(0,7),36)>>>0;const from=parseInt(code.slice(7,9),36)+LB_YBASE;const to=parseInt(code.slice(9,11),36)+LB_YBASE;if(isNaN(seed)||isNaN(from)||isNaN(to))return null;return {seed,from:Math.max(YMIN,Math.min(YMAX,from)),to:Math.max(YMIN,Math.min(YMAX,to)),conf:code[11]==="W"?"W":"E",code};}
-function groupCode(c){return c.replace(/(.{4})/g,"$1-").replace(/-$/,"");}
-function parseHashLobby(){const m=(location.hash||"").match(/L=([0-9A-Za-z]+)/);return m?decLobby(m[1]):null;}
-function applyLobby(l){lobby=l;minYr=l.from;maxYr=l.to;conference=l.conf;
-  const from=$("#from"),to=$("#to");if(from){from.value=minYr;to.value=maxYr;from.disabled=true;to.disabled=true;}
-  document.querySelectorAll("#confToggle button").forEach(b=>{b.classList.toggle("on",b.dataset.c===conference);b.disabled=true;});
-  $("#poolCount").textContent=poolCount();renderLobbyBanner();}
-function renderLobbyBanner(){let el=$("#lobbyBanner");if(!lobby){if(el)el.remove();return;}
-  if(!el){el=document.createElement("div");el.id="lobbyBanner";el.className="lobby-banner";$("#setupScreen").insertBefore(el,$("#setupScreen").firstChild);}
-  el.innerHTML=`<span class="lb-tag">🏀 Shared lobby</span><span class="lb-code">${groupCode(lobby.code)}</span><span class="lb-note">Everyone in this lobby plays the identical league — draft your six and compare records.</span><button class="lb-leave" id="lbLeave">Leave</button>`;
-  $("#lbLeave").onclick=leaveLobby;}
-function leaveLobby(){lobby=null;const from=$("#from"),to=$("#to");if(from){from.disabled=false;to.disabled=false;}document.querySelectorAll("#confToggle button").forEach(b=>b.disabled=false);if(location.hash)history.replaceState(null,"","#");const el=$("#lobbyBanner");if(el)el.remove();const c=$("#cmpOpen");if(c)c.remove();updateSummaries();}
+/* Short random room code (6 chars, unambiguous alphabet). The code is just a
+   Firebase room key now — the seed and rules live in the room's settings node,
+   which is what lets the code be short and rules be picked in the lobby. */
+function genCode(){const A="ABCDEFGHJKMNPQRSTUVWXYZ23456789";let s="";for(let i=0;i<6;i++)s+=A[Math.floor(Math.random()*A.length)];return s;}
+function groupCode(c){return c||"";}
+function parseHashCode(){const m=(location.hash||"").match(/L=([0-9A-Za-z]+)/);return m?m[1].toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,6):null;}
+function leaveLobby(){lobby=null;if(location.hash)history.replaceState(null,"","#");const el=$("#lobbyBanner");if(el)el.remove();const c=$("#cmpOpen");if(c)c.remove();updateSummaries();}
 
 /* result codes for the combined leaderboard */
 function encResult(name,W,L,champ){try{return "R"+btoa(unescape(encodeURIComponent(JSON.stringify([String(name).slice(0,18),W,L,champ?1:0]))));}catch(e){return "";}}
@@ -531,11 +523,14 @@ let mpOn=false,mpAuth=null,mpDb=null,mpUid=null,mpRoom=null,mpCode=null,mpJoined
 const DRAFT_SECONDS=120;
 function mpEsc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function mpInit(){if(mpOn)return true;if(typeof firebase==="undefined"||!firebase.initializeApp)return false;try{if(!(firebase.apps&&firebase.apps.length))firebase.initializeApp(FIREBASE_CONFIG);mpAuth=firebase.auth();mpDb=firebase.database();mpOn=true;return true;}catch(e){console.warn("Firebase unavailable",e);return false;}}
-function mpHeader(l){const c=$("#mpCodeShow");if(c)c.textContent=groupCode(l.code);const s=$("#mpSettings");if(s)s.innerHTML=`Era ${l.from}\u2013${l.to} \u00b7 ${l.conf==="E"?"Eastern":"Western"} Conference \u00b7 everyone plays the identical league`;const lv=$("#mpLeave");if(lv)lv.onclick=mpLeave;}
-function mpJoin(l){mpCode=l.code;
+function mpHeader(code){mpCode=code||mpCode;const c=$("#mpCodeShow");if(c)c.textContent=mpCode;
+  const cp=$("#mpCopyCode");if(cp)cp.onclick=()=>{if(navigator.clipboard)navigator.clipboard.writeText(mpCode).then(()=>{cp.textContent="Copied! \u2713";setTimeout(()=>cp.textContent="Copy code",1500);},()=>{});};
+  const sh=$("#mpShareInvite");if(sh)sh.onclick=()=>{let url="";try{url=location.origin+location.pathname+"#L="+mpCode;}catch(e){url="#L="+mpCode;}if(navigator.share){navigator.share({title:"82-0 lobby",text:"Join my 82-0 lobby \u2014 code "+mpCode,url:url}).catch(()=>{});}else if(navigator.clipboard){navigator.clipboard.writeText(url).then(()=>{sh.textContent="Link copied! \u2713";setTimeout(()=>sh.innerHTML="&#128279; Share invite",1500);},()=>{});}};
+  const lv=$("#mpLeave");if(lv)lv.onclick=mpLeave;}
+function mpJoin(code){mpCode=code;lobby={code:code};
   mpAuth.onAuthStateChanged(user=>{if(!user||mpJoined)return;mpJoined=true;mpUid=user.uid;mpRoom=mpDb.ref("rooms/"+mpCode);
     mpRoom.child("settings").once("value").then(s=>{
-      if(!s.exists()){mpRoom.child("settings").set({seed:l.seed,eraFrom:l.from,eraTo:l.to,conf:l.conf,hostId:mpUid,status:"waiting",createdAt:Date.now()}).catch(()=>{});track("lobby_created",{code:mpCode});}else{track("lobby_joined",{code:mpCode});}
+      if(!s.exists()){const seed=(Math.floor(Math.random()*4294967296))>>>0;mpRoom.child("settings").set({seed:seed,eraFrom:YMIN,eraTo:YMAX,conf:"W",free:false,hostId:mpUid,status:"waiting",createdAt:Date.now()}).catch(()=>{});track("lobby_created",{code:mpCode});}else{track("lobby_joined",{code:mpCode});}
       const meRef=mpRoom.child("players/"+mpUid);
       meRef.update({name:(window._lbName||"Player"),ready:false,joinedAt:Date.now()}).catch(()=>{});
       meRef.onDisconnect().remove();
@@ -544,6 +539,7 @@ function mpJoin(l){mpCode=l.code;
   });
   mpAuth.signInAnonymously().catch(()=>renderLobbyScreen(null,"Sign-in failed \u2014 check your connection, or tap Leave to play solo."));
 }
+const ERA_PRESETS=[{k:"all",label:"All-time",from:YMIN,to:YMAX},{k:"2000",label:"2000s+",from:2000,to:YMAX},{k:"2016",label:"Modern",from:2016,to:YMAX}];
 function renderLobbyScreen(room,note){const body=$("#lobbyBody");if(!body)return;
   if(!room){body.innerHTML=`<div class="mp-note">${note||"Connecting\u2026"}</div>`;return;}
   const settings=room.settings||{},players=room.players||{};
@@ -551,18 +547,46 @@ function renderLobbyScreen(room,note){const body=$("#lobbyBody");if(!body)return
   const ids=Object.keys(players).sort((a,b)=>(players[a].joinedAt||0)-(players[b].joinedAt||0));
   const allReady=ids.length>0&&ids.every(id=>players[id].ready);
   const me=players[mpUid]||{};
-  const free=!!settings.free;
+  const free=!!settings.free,conf=settings.conf||"W",eFrom=settings.eraFrom||YMIN,eTo=settings.eraTo||YMAX;
+  const eraKey=(ERA_PRESETS.find(p=>p.from===eFrom&&p.to===eTo)||{}).k||"custom";
   const list=ids.map(id=>{const p=players[id],you=id===mpUid,host=id===settings.hostId;
     return `<div class="mp-p${you?" me":""}"><span class="mp-nm">${mpEsc(p.name||"Player")}${host?' <span class="mp-hosttag">host</span>':""}${you?' <span class="mp-youtag">you</span>':""}</span><span class="mp-rd ${p.ready?"on":""}">${p.ready?"Ready":"Not ready"}</span></div>`;}).join("");
-  body.innerHTML=`<div class="mp-players">${list||'<div class="mp-note">Waiting for players\u2026</div>'}</div>
+  let settingsHtml;
+  if(mpIsHost){settingsHtml=`<div class="mp-sec">Room settings <span>· you're the host</span></div>
+    <div class="mp-setrow"><span class="mp-slbl">Era</span><div class="conf-toggle mp-era">${ERA_PRESETS.map(p=>`<button data-era="${p.k}" class="${eraKey===p.k?"on":""}">${p.label}</button>`).join("")}</div></div>
+    <div class="mp-setrow"><span class="mp-slbl">Conference</span><div class="conf-toggle" id="mpConf"><button data-c="E" class="${conf==="E"?"on":""}">Eastern</button><button data-c="W" class="${conf==="W"?"on":""}">Western</button></div></div>
+    <div class="mp-setrow"><span class="mp-slbl">Positioning</span><div class="conf-toggle" id="mpPos"><button data-f="0" class="${free?"":"on"}">By position</button><button data-f="1" class="${free?"on":""}">Free</button></div></div>`;}
+  else{settingsHtml=`<div class="mp-sec">Room settings <span>· set by host</span></div><div class="mp-note" style="text-align:left;margin:0 0 4px">Era: <b>${eFrom}\u2013${eTo}</b> \u00b7 ${conf==="E"?"Eastern":"Western"} \u00b7 ${free?"Free positioning":"By position"}</div>`;}
+  body.innerHTML=`<div class="mp-sec">Players (${ids.length})</div><div class="mp-players">${list||'<div class="mp-note">Waiting for players\u2026</div>'}</div>
     <div class="mp-namerow"><label>Your name</label><input id="mpName" class="mp-in" maxlength="18" value="${mpEsc(me.name||window._lbName||"")}"></div>
-    ${mpIsHost?`<div class="mp-posrow"><span class="mp-poslbl">Positioning</span><div class="conf-toggle" id="mpPos"><button data-f="0" class="${free?"":"on"}">By position</button><button data-f="1" class="${free?"on":""}">Free</button></div></div>`:`<div class="mp-note" style="margin-bottom:12px">Positioning: <b>${free?"Free (positionless)":"By position"}</b> \u00b7 set by host</div>`}
-    <button class="bigcta${me.ready?" isready":""}" id="mpReady">${me.ready?"\u2713 Ready":"I'm ready"}</button>
+    ${settingsHtml}
+    <button class="bigcta${me.ready?" isready":""}" id="mpReady" style="margin-top:16px">${me.ready?"\u2713 Ready":"I'm ready"}</button>
     ${mpIsHost?`<button class="bigcta" id="mpStart" style="margin-top:10px"${allReady?"":" disabled"}>${allReady?"Start league &rarr;":"Waiting for all players to ready"}</button>`:`<div class="mp-note" style="margin-top:12px">${allReady?"Everyone's ready \u2014 waiting for the host to start.":"Ready up, then the host starts the league."}</div>`}`;
   const nm=$("#mpName");if(nm)nm.onchange=()=>{const v=(nm.value||"").slice(0,18)||"Player";window._lbName=v;if(mpRoom)mpRoom.child("players/"+mpUid+"/name").set(v);};
+  const era=$(".mp-era");if(era)era.querySelectorAll("button").forEach(b=>b.onclick=()=>{const p=ERA_PRESETS.find(x=>x.k===b.dataset.era);if(p&&mpRoom)mpRoom.child("settings").update({eraFrom:p.from,eraTo:p.to});});
+  const cf=$("#mpConf");if(cf)cf.querySelectorAll("button").forEach(b=>b.onclick=()=>{if(mpRoom)mpRoom.child("settings/conf").set(b.dataset.c);});
   const pos=$("#mpPos");if(pos)pos.querySelectorAll("button").forEach(b=>b.onclick=()=>{if(mpRoom)mpRoom.child("settings/free").set(b.dataset.f==="1");});
   const rb=$("#mpReady");if(rb)rb.onclick=()=>{if(mpRoom)mpRoom.child("players/"+mpUid+"/ready").set(!me.ready);};
   const sb=$("#mpStart");if(sb)sb.onclick=()=>{if(allReady&&mpRoom)mpRoom.child("settings/status").set("started");};
+}
+/* ---- Multiplayer entry ("Play a Friend") ---- */
+function showMpEntry(){showScreen("mpentry");const nm=$("#mpEntryName");if(nm)nm.value=window._lbName||"";const jr=$("#mpJoinRow");if(jr)jr.style.display="none";
+  const nb=$("#mpNewGame");if(nb)nb.onclick=startNewGame;
+  const jb=$("#mpJoinToggle");if(jb)jb.onclick=()=>{const r=$("#mpJoinRow");if(r)r.style.display=r.style.display==="none"?"flex":"none";const ci=$("#mpJoinCode");if(ci)ci.focus();};
+  const jc=$("#mpJoinGo");if(jc)jc.onclick=joinWithCode;
+  const solo=$("#mpSolo");if(solo)solo.onclick=(e)=>{e.preventDefault();showScreen("setup");renderAll();};
+}
+function mpNameFromEntry(){const nm=$("#mpEntryName");if(nm&&nm.value.trim())window._lbName=nm.value.trim().slice(0,18);}
+function startNewGame(){mpNameFromEntry();if(!mpInit()){const e=$("#mpEntryErr");if(e){e.style.display="";e.textContent="Multiplayer needs a live connection — try again on the deployed site.";}return;}
+  const code=genCode();const root=$("#modalRoot");
+  if(root)root.innerHTML=`<div class="lbm-bg"><div class="lbm cr-modal"><div class="cr-lbl">Room created</div><div class="cr-code">${code}</div><div class="cr-sub">Taking you to the lobby\u2026</div></div></div>`;
+  mpHeader(code);mpJoin(code);
+  setTimeout(()=>{if(root)root.innerHTML="";showScreen("lobby");},1500);
+}
+function joinWithCode(){mpNameFromEntry();const ci=$("#mpJoinCode");const code=((ci&&ci.value)||"").toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,6);
+  if(code.length<4){const e=$("#mpEntryErr");if(e){e.style.display="";e.textContent="Enter the 6-character room code.";}return;}
+  if(!mpInit()){const e=$("#mpEntryErr");if(e){e.style.display="";e.textContent="Multiplayer needs a live connection — try again on the deployed site.";}return;}
+  mpHeader(code);showScreen("lobby");mpJoin(code);
 }
 function mpLeave(){try{if(mpRoom){mpRoom.off();mpRoom.child("players/"+mpUid).remove();}}catch(e){}clearInterval(mpTimer);mpRoom=null;mpJoined=false;mpStarted=false;mpPublished=false;mpRan=false;leaveLobby();showScreen("setup");}
 
@@ -618,8 +642,10 @@ function mpUpdateDraftUI(room){if(!mpRoom||screen!=="draft")return;const sim=$("
   if(mpIsHost){const canRun=drafted>=1;sim.disabled=!canRun;sim.textContent=(drafted>=total)?`Run the season \u2192 (all ${total} ready)`:`Run the season \u2192 (${drafted}/${total} drafted)`;sim.onclick=()=>{if(mpRoom){const lineup=ids.filter(id=>players[id].drafted);if(lineup.length)mpRoom.child("settings").update({status:"running",lineup});}};}
   else{sim.disabled=true;sim.textContent=`\u2713 Team locked \u2014 waiting (${drafted}/${total} drafted)`;sim.onclick=null;}
 }
-function mpOnRoom(room){if(!room)return;mpRoomData=room;const st=(room.settings||{}).status;
-  if(st==="started"&&screen==="lobby"&&!mpStarted){mpStarted=true;freePos=!!(room.settings&&room.settings.free);startDraft();mpStartTimer();}
+function mpOnRoom(room){if(!room)return;mpRoomData=room;const s=room.settings||{},st=s.status;
+  if(s.seed!=null){lobby=lobby||{code:mpCode};lobby.seed=s.seed>>>0;lobby.from=s.eraFrom;lobby.to=s.eraTo;lobby.conf=s.conf;lobby.code=mpCode;
+    minYr=s.eraFrom||YMIN;maxYr=s.eraTo||YMAX;conference=s.conf||"W";freePos=!!s.free;}
+  if(st==="started"&&screen==="lobby"&&!mpStarted){mpStarted=true;startDraft();mpStartTimer();}
   if(st==="running"&&!mpRan){clearInterval(mpTimer);tryRunMP(room);}
   if(screen==="lobby")renderLobbyScreen(room);else if(screen==="draft")mpUpdateDraftUI(room);
 }
@@ -739,5 +765,7 @@ function showDailyResult(){if(!reg)return;const me=(reg.teams||[]).find(t=>t.isY
 }
 
 initControls();applyLock();
-if(/daily/i.test(location.hash||"")){startDaily();}
-else{const _lb=parseHashLobby();if(_lb){applyLobby(_lb);if(mpInit()){mpHeader(_lb);showScreen("lobby");mpJoin(_lb);}else{showScreen("setup");}}else{showScreen("setup");}renderAll();}
+{const _h=location.hash||"";
+ if(/daily/i.test(_h)){startDaily();}
+ else if(/(^|[#&])mp($|[^A-Za-z])/.test(_h)&&!/L=/.test(_h)){showMpEntry();renderAll();}
+ else{const _code=parseHashCode();if(_code){if(mpInit()){mpHeader(_code);showScreen("lobby");mpJoin(_code);}else{showScreen("setup");}}else{showScreen("setup");}renderAll();}}

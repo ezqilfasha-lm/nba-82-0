@@ -46,14 +46,35 @@
     </div>
   </div>
 
+  <!-- ============ MULTIPLAYER ENTRY (Play a Friend) ============ -->
+  <div id="mpEntryScreen" class="screen" style="display:none">
+    <div class="mpe-wrap">
+      <div class="mpe-badge">&bull; Multiplayer &middot; Beta</div>
+      <h1 class="mpe-h">Play a Friend</h1>
+      <p class="mpe-sub">Build your own squad, simulate a season, and see who drafted the better team.</p>
+      <label class="mpe-lbl" for="mpEntryName">Your name</label>
+      <input id="mpEntryName" class="mpe-name" maxlength="18" placeholder="Your name">
+      <button class="mpe-new" id="mpNewGame">&#128308; New live game</button>
+      <div class="mpe-hint">2&ndash;4 managers drafting into one shared league. Pick your rules in the lobby.</div>
+      <button class="mpe-join" id="mpJoinToggle">Join with a code</button>
+      <div class="mpe-joinrow" id="mpJoinRow" style="display:none">
+        <input id="mpJoinCode" class="mpe-code" maxlength="6" placeholder="CODE" autocapitalize="characters">
+        <button class="mpe-go" id="mpJoinGo">Join &rarr;</button>
+      </div>
+      <div class="mpe-err" id="mpEntryErr" style="display:none"></div>
+      <a href="#" class="mpe-solo" id="mpSolo">Or play solo &rarr;</a>
+    </div>
+  </div>
+
   <!-- ============ MULTIPLAYER LOBBY (waiting room) ============ -->
   <div id="lobbyScreen" class="screen" style="display:none">
     <div class="mp-card">
-      <div class="mp-h">Multiplayer lobby</div>
+      <div class="mp-roomlbl">Room code</div>
       <div class="mp-code" id="mpCodeShow">&mdash;</div>
-      <div class="mp-settings" id="mpSettings"></div>
+      <div class="mp-codebtns"><button class="mp-cbtn" id="mpCopyCode">Copy code</button><button class="mp-cbtn share" id="mpShareInvite">&#128279; Share invite</button></div>
+      <div class="mp-codehint">Send the code or link to a friend to play.</div>
       <div id="lobbyBody"><div class="mp-note">Connecting&hellip;</div></div>
-      <button class="mp-leave" id="mpLeave">Leave lobby</button>
+      <button class="mp-leave" id="mpLeave">&larr; Leave lobby</button>
     </div>
   </div>
 
