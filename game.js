@@ -29,7 +29,7 @@ const TEAM_SEASONS=[
 const MULTI={
  "Magic Johnson":["PG","SG","SF"],"Michael Jordan":["SG","SF"],"Kobe Bryant":["SG","SF"],"James Harden":["SG","PG"],"Russell Westbrook":["PG","SG"],"Dwyane Wade":["SG","PG"],
  "Jrue Holiday":["PG","SG"],"Paul Pierce":["SF","SG"],"Khris Middleton":["SF","SG"],"Rick Fox":["SF","SG"],"Klay Thompson":["SG","SF"],
- "Larry Bird":["SF","PF"],"LeBron James":["SF","PF"],"Kevin Durant":["SF","PF","C"],"Scottie Pippen":["SF","PF"],"James Worthy":["SF","PF"],"Robert Horry":["PF","SF"],
+ "Larry Bird":["SF","PF"],"LeBron James":["SF","PF","PG","SG","C"],"Kevin Durant":["SF","PF","C"],"Scottie Pippen":["SF","PF"],"James Worthy":["SF","PF"],"Robert Horry":["PF","SF"],
  "Charles Barkley":["PF","SF"],"Dennis Rodman":["PF","SF"],"Toni Kukoc":["SF","PF","SG"],"Andre Iguodala":["SF","SG","PF"],"Shane Battier":["SF","PF"],"P.J. Tucker":["PF","SF"],
  "Aaron Gordon":["PF","SF"],"Michael Porter Jr.":["SF","PF"],"Otis Thorpe":["PF","C"],
  "Kevin McHale":["PF","C"],"Kevin Garnett":["PF","C"],"Chris Bosh":["PF","C"],"Serge Ibaka":["PF","C"],"Kevin Love":["PF","C"],"Draymond Green":["PF","C"],
@@ -131,12 +131,16 @@ function offI(p){return clamp(p.imp+(p.ppg-18)*0.45+(p.apg-4)*0.6,60,106);}
 function defI(p){return clamp(p.imp+(p.rpg-8)*0.7-(p.ppg-18)*0.12+(p.pos==="C"?4:p.pos==="PF"?2:0),60,106);}
 function slotPos(k,pl){return k==="6"?pl.pos:k;} // unit weights use the slot the player occupies
 const POS_ORD={PG:0,SG:1,SF:2,PF:3,C:4};
-const FIT_STEP=0.07, FIT_FLOOR=0.7;
+const FIT_STEP=0.08, FIT_FLOOR=0.7, SEC_STEP=0.035, SEC_FLOOR=0.85;
 /* Position fit: 1.0 when a player is in one of his natural positions, dropping with
    distance from the nearest one (guard-at-center = big hit), floored at 0.7. The
    sixth man is a flex bench role, so he's exempt. Only bites in free positioning,
    since strict mode already restricts placement to eligible positions. */
-function posFit(pl,k){if(k==="6")return 1;const tgt=POS_ORD[k];if(tgt==null)return 1;let d=99;eligPositions(pl).forEach(e=>{if(POS_ORD[e]!=null)d=Math.min(d,Math.abs(tgt-POS_ORD[e]));});if(d===99)d=0;return clamp(1-FIT_STEP*d,FIT_FLOOR,1);}
+function posFit(pl,k){if(k==="6")return 1;const tgt=POS_ORD[k];if(tgt==null)return 1;const elig=eligPositions(pl);
+  const idx=elig.indexOf(k);
+  if(idx>=0)return clamp(1-SEC_STEP*idx,SEC_FLOOR,1);
+  let d=99;elig.forEach(e=>{if(POS_ORD[e]!=null)d=Math.min(d,Math.abs(tgt-POS_ORD[e]));});if(d===99)d=0;
+  return clamp(1-FIT_STEP*d,FIT_FLOOR,1);}
 function unitProfile(){
   const entries=SLOT_DEFS.map(d=>({k:d.key,p:roster[d.key],w:d.key==="6"?0.5:1}));
   let oN=0,oD=0,dN=0,dD=0,apgW=0,rpgW=0,wsum=0;
@@ -315,7 +319,7 @@ function applyLock(){$("#rrCount").textContent=rerollsLeft;}
 function renderCourt(){
   const spots=$("#spots");spots.innerHTML="";
   ["PG","SG","SF","PF","C"].forEach(k=>{const p=roster[k];const xy=SPOT_XY[k];const el=document.createElement("div");
-    const oop=p&&posFit(p,k)<1;
+    const oop=p&&posFit(p,k)<0.9;
     el.className="spot "+roleClass(k)+(p?" filled":"")+(oop?" oop":"")+(p&&movableTargets(k).length?" movable":"");el.style.top=xy.t+"%";el.style.left=xy.l+"%";
     if(p){el.innerHTML=avatar(p,44)+`<div class="nm">${shortName(p.n)}</div><div class="lbl">${k}${showRatings?" · "+p.imp:""}</div>`+(oop?`<span class="oop-tag" title="Out of position — ${p.n} plays ${eligPositions(p).join("/")}. Rating penalty applied.">off&#8209;pos</span>`:"")+(movableTargets(k).length?`<span class="mvpip">⇄</span>`:"");
       if(movableTargets(k).length)el.onclick=()=>{movingSlot=movingSlot===k?null:k;renderCourt();renderMovebar();};}
@@ -329,7 +333,7 @@ function renderCourt(){
   renderMovebar();
   const btn=$("#sim");
   if(mpRoom){if(rosterFull()&&!mpPublished){mpPublished=true;mpPublishRoster();}mpUpdateDraftUI(mpRoomData);}
-  else if(reg){const md=$("#simmode");if(md)md.style.display="none";btn.disabled=true;btn.textContent="Season played — Restart run to replay";}
+  else if(reg){const md=$("#simmode");if(md)md.style.display="none";btn.disabled=false;btn.textContent="\u2190 Back to season summary";btn.onclick=()=>showScreen("results");}
   else{const md=$("#simmode");if(md)md.style.display="";btn.disabled=!rosterFull();btn.textContent=rosterFull()?"Simulate the season":`Fill all 6 to simulate (${Object.values(roster).filter(Boolean).length}/6)`;}
   $("#rrCount").textContent=rerollsLeft;
 }
@@ -703,7 +707,7 @@ function playRivalry(gm,done){
 }
 
 /* ============================================================ WIRE UP ============================================================ */
-$("#sim").addEventListener("click",()=>{if(!mpRoom&&rosterFull())runSeason();});
+$("#sim").addEventListener("click",()=>{if(!mpRoom&&!reg&&rosterFull())runSeason();});
 /* ---- Analytics (no-op unless analytics.js configured with a key) ---- */
 function track(e,p){try{window.posthog&&window.posthog.capture&&window.posthog.capture(e,p||{});}catch(_){}}
 
