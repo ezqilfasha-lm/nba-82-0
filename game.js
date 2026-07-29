@@ -89,7 +89,9 @@ const POS_LABEL={PG:"PG",SG:"SG",SF:"SF",PF:"PF",C:"C","6":"6th"};
 const SPOT_XY={PG:{t:12,l:50},SG:{t:31,l:80},SF:{t:31,l:20},PF:{t:61,l:33},C:{t:65,l:67}};
 let roster={PG:null,SG:null,SF:null,PF:null,C:null,"6":null};
 let minYr,maxYr,conference="W";
-let spinning=false, currentTeam=null, rerollsLeft=1, started=false, movingSlot=null, pickSel=null, sortBy="rating";
+let spinning=false, currentTeam=null, rerollsLeft=1, started=false, movingSlot=null, pickSel=null, sortBy="rating", difficulty="normal", showRatings=true;
+const DIFF_REROLLS={easy:3,normal:1,hard:0};
+function impShow(v){return showRatings?v:"?";}
 let phase="draft", reg=null, po=null, poReveal=0, activeResTab="log", simMode="watch", runSeed=0, pbpMode="quick";
 let screen="setup", freePos=false;
 let lobby=null; // {seed,from,to,conf} when playing a shared multiplayer league
@@ -257,10 +259,15 @@ function initControls(){
   $("#backToDraft").onclick=()=>{showScreen("draft");renderAll();};
   const _db=$("#dailyBtn");if(_db)_db.onclick=startDaily;
   const _sc=$("#shareCard");if(_sc)_sc.onclick=shareCard;
+  const _era={all:[YMIN,YMAX],"2000":[2000,YMAX],"2010":[2010,YMAX],"2016":[2016,YMAX]};
+  document.querySelectorAll("#eraPresets button").forEach(b=>{b.onclick=()=>{if(lobby)return;const r=_era[b.dataset.era];minYr=Math.max(YMIN,r[0]);maxYr=Math.min(YMAX,r[1]);from.value=minYr;to.value=maxYr;document.querySelectorAll("#eraPresets button").forEach(x=>x.classList.toggle("on",x===b));$("#poolCount").textContent=poolCount();};});
+  const _dn={easy:"Easy · 3 rerolls",normal:"Normal · 1 reroll",hard:"Hard · no rerolls"};
+  document.querySelectorAll("#diffToggle button").forEach(b=>{b.onclick=()=>{difficulty=b.dataset.d;document.querySelectorAll("#diffToggle button").forEach(x=>x.classList.toggle("on",x===b));const dn=$("#diffNote");if(dn)dn.textContent=_dn[difficulty];};});
+  document.querySelectorAll("#ratingsToggle button").forEach(b=>{b.onclick=()=>{showRatings=b.dataset.r==="1";document.querySelectorAll("#ratingsToggle button").forEach(x=>x.classList.toggle("on",x===b));};});
   $("#poolCount").textContent=poolCount();
 }
 function summaryText(){return `${dailyMode?"\u{1F5D3}\uFE0F Daily #"+dailyNum+" · ":""}${minYr===maxYr?minYr:minYr+"–"+maxYr} · ${CONF_NAME[conference]} · ${freePos?"Free positioning":"By position"}${lobby?" · 🏀 Lobby "+groupCode(lobby.code):""}`;}
-function startDraft(){track("draft_started",{mode:dailyMode?"daily":(mpRoom?"multiplayer":"freestyle")});started=true;phase="draft";updateSummaries();showScreen("draft");renderAll();}
+function startDraft(){track("draft_started",{mode:dailyMode?"daily":(mpRoom?"multiplayer":"freestyle")});rerollsLeft=mpRoom?1:(DIFF_REROLLS[difficulty]!=null?DIFF_REROLLS[difficulty]:1);started=true;phase="draft";updateSummaries();showScreen("draft");renderAll();}
 function updateSummaries(){const s=summaryText();const a=$("#setupSummary"),b=$("#resSummary");if(a)a.textContent=s;if(b)b.textContent=s;}
 function fullReset(){dailyMode=false;dailyTeams=null;roster={PG:null,SG:null,SF:null,PF:null,C:null,"6":null};rerollsLeft=1;started=false;spinning=false;currentTeam=null;movingSlot=null;pickSel=null;phase="draft";reg=null;po=null;poReveal=0;activeResTab="log";$("#results").innerHTML="";$("#poolCount").textContent=poolCount();showScreen("setup");renderAll();}
 
@@ -310,13 +317,13 @@ function renderCourt(){
   ["PG","SG","SF","PF","C"].forEach(k=>{const p=roster[k];const xy=SPOT_XY[k];const el=document.createElement("div");
     const oop=p&&posFit(p,k)<1;
     el.className="spot "+roleClass(k)+(p?" filled":"")+(oop?" oop":"")+(p&&movableTargets(k).length?" movable":"");el.style.top=xy.t+"%";el.style.left=xy.l+"%";
-    if(p){el.innerHTML=avatar(p,44)+`<div class="nm">${shortName(p.n)}</div><div class="lbl">${k} · ${p.imp}</div>`+(oop?`<span class="oop-tag" title="Out of position — ${p.n} plays ${eligPositions(p).join("/")}. Rating penalty applied.">off&#8209;pos</span>`:"")+(movableTargets(k).length?`<span class="mvpip">⇄</span>`:"");
+    if(p){el.innerHTML=avatar(p,44)+`<div class="nm">${shortName(p.n)}</div><div class="lbl">${k}${showRatings?" · "+p.imp:""}</div>`+(oop?`<span class="oop-tag" title="Out of position — ${p.n} plays ${eligPositions(p).join("/")}. Rating penalty applied.">off&#8209;pos</span>`:"")+(movableTargets(k).length?`<span class="mvpip">⇄</span>`:"");
       if(movableTargets(k).length)el.onclick=()=>{movingSlot=movingSlot===k?null:k;renderCourt();renderMovebar();};}
     else{el.innerHTML=`<div class="disc">${k}</div><div class="lbl">${POS_FULL[k]}</div>`;}
     spots.appendChild(el);});
   // bench
   const b=roster["6"];const bench=$("#benchSpot");bench.className="bench"+(b?" filled":"");
-  if(b){bench.innerHTML=`<span class="bl">6TH</span>`+avatar(b,30)+`<div class="who"><div class="nm">${b.n}</div><div class="yr">${b.tm} · ${seasonLabel(b)} · ${b.pos}</div></div><span class="imp" style="font-family:'IBM Plex Mono';color:var(--led);font-weight:600">${b.imp}</span>`+(movableTargets("6").length?`<span class="mv" title="Move">&#8646;</span>`:"");
+  if(b){bench.innerHTML=`<span class="bl">6TH</span>`+avatar(b,30)+`<div class="who"><div class="nm">${b.n}</div><div class="yr">${b.tm} · ${seasonLabel(b)} · ${b.pos}</div></div><span class="imp" style="font-family:'IBM Plex Mono';color:var(--led);font-weight:600">${impShow(b.imp)}</span>`+(movableTargets("6").length?`<span class="mv" title="Move">&#8646;</span>`:"");
     if(movableTargets("6").length)bench.querySelector(".mv").onclick=()=>{movingSlot=movingSlot==="6"?null:"6";renderCourt();renderMovebar();};}
   else bench.innerHTML=`<span class="bl">6TH</span><div class="who"><div class="empty">Sixth man — any position</div></div>`;
   renderMovebar();
@@ -363,7 +370,7 @@ function renderPicker(){
       const sel=(pickSel===p.n&&draftable);
       const placeIn=sel?`<div class="placein"><div class="pil">Place in (${opens.length})</div><div class="opts">`+opens.map(s=>`<button class="pi-btn${s==="6"?" six":""}" data-slot="${s}"><span class="code">${s==="6"?"6th":s}</span><span class="full">${POS_FULL[s]}</span></button>`).join("")+`</div></div>`:"";
       return `<div class="pcard${sel?" sel":""}${draftable?"":" dis"}" data-n="${encodeURIComponent(p.n)}" data-draftable="${draftable?1:0}">
-        <div class="prow"><div class="badge ${roleClass(p.pos)}">${p.imp}</div><div class="pinfo"><div class="n">${p.n}</div><div class="s">${p.ppg.toFixed(1)} PPG · ${p.rpg.toFixed(1)} RPG · ${p.apg.toFixed(1)} APG${taken?" · drafted":(draftable?"":" · no open slot")}</div></div><div class="ptags">${tags}</div></div>${placeIn}</div>`;}).join("");
+        <div class="prow"><div class="badge ${roleClass(p.pos)}">${impShow(p.imp)}</div><div class="pinfo"><div class="n">${p.n}</div><div class="s">${p.ppg.toFixed(1)} PPG · ${p.rpg.toFixed(1)} RPG · ${p.apg.toFixed(1)} APG${taken?" · drafted":(draftable?"":" · no open slot")}</div></div><div class="ptags">${tags}</div></div>${placeIn}</div>`;}).join("");
     wrap.innerHTML=`<div class="sqhead"><span class="chip">Squad spun</span><span class="slots"><b>${needSlots()}</b> slots left</span>
         <button class="rerollbtn" id="rerollBtn" ${rerollsLeft>0?"":"disabled"}>&#8635; Re-roll${rerollsLeft>0?` (${rerollsLeft} left)`:" — none"}</button></div>
       <div class="sqteam">${currentTeam.team} <span class="yr">${currentTeam.year-1}/${String(currentTeam.year).slice(2)}</span></div>
