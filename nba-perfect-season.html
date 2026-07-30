@@ -35,16 +35,19 @@
       <div class="daily-or">or build a custom run</div>
       <div class="setup-h">Set up your run</div>
       <div class="setup-sub">Choose your pool, then start the draft. Settings lock once you begin — restart to change them.</div>
-      <div class="setup-row"><div class="setup-lbl">Era <span>which seasons can be spun</span></div>
-        <div class="setup-ctrl"><div class="range-field"><span class="lbl">From</span><select id="from"></select></div><div class="range-field"><span class="lbl">To</span><select id="to"></select></div></div></div>
+      <div class="setup-row era-head"><div class="setup-lbl">Era <span>drag to pick which seasons can be spun</span></div>
+        <div class="era-read"><b id="eraFromLbl">—</b><span class="dash">–</span><b id="eraToLbl">—</b><span class="era-count" id="eraCount"></span></div></div>
+      <div class="era-slider" id="eraSlider"><div class="era-track"></div><div class="era-fill" id="eraFill"></div><input type="range" id="eraMin" class="era-range"><input type="range" id="eraMax" class="era-range"></div>
       <div class="setup-presets" id="eraPresets"><button data-era="all">All-time</button><button data-era="2000">2000s+</button><button data-era="2010">2010s+</button><button data-era="2016">Modern</button></div>
       <div class="setup-row"><div class="setup-lbl">Conference <span>which league you compete in</span></div>
         <div class="setup-ctrl"><div class="conf-toggle" id="confToggle"><button data-c="E">East</button><button data-c="W" class="on">West</button></div></div></div>
       <div class="setup-row"><div class="setup-lbl">Positioning <span>free = place any player in any slot</span></div>
         <div class="setup-ctrl"><div class="conf-toggle" id="freeToggle"><button data-f="0" class="on">By position</button><button data-f="1">Free</button></div></div></div>
+      <div class="setup-row"><div class="setup-lbl">Player ratings <span>Season = that year · Prime = career best</span></div>
+        <div class="setup-ctrl"><div class="conf-toggle" id="rmodeToggle"><button data-m="season" class="on">Season</button><button data-m="prime">Prime</button></div></div></div>
       <div class="setup-row"><div class="setup-lbl">Difficulty <span id="diffNote">Normal · 1 reroll</span></div>
         <div class="setup-ctrl"><div class="conf-toggle" id="diffToggle"><button data-d="easy">Easy</button><button data-d="normal" class="on">Normal</button><button data-d="hard">Hard</button></div></div></div>
-      <div class="setup-row"><div class="setup-lbl">Player ratings <span>overalls while you draft</span></div>
+      <div class="setup-row"><div class="setup-lbl">Overalls <span>show ratings while you draft</span></div>
         <div class="setup-ctrl"><div class="conf-toggle" id="ratingsToggle"><button data-r="1" class="on">Shown</button><button data-r="0">Blind</button></div></div></div>
       <div class="setup-pool"><b id="poolCount">0</b> players in the pool</div>
       <button class="bigcta" id="startDraft">Start Draft &rarr;</button>

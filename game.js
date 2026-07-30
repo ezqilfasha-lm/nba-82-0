@@ -38,14 +38,20 @@ const MULTI={
  "Jalen Williams":["SF","SG"],"Chet Holmgren":["C","PF"],"Alex Caruso":["SG","PG"],
  "Karl-Anthony Towns":["C","PF"],"Mikal Bridges":["SF","SG"],"Josh Hart":["SG","SF"],
 };
-/* Merge the bulk 2016–2024 league (companion file rosters-2016-2024.js) if present.
-   Dedupe by team+year so curated iconic squads win over the auto-generated ones. */
+/* Merge the bulk 2016–2024 league (rosters.js). Curated iconic squads win by team+year,
+   but if a curated squad is thin (star core only), top it up with real bench players from
+   the bulk version of that same team-season — keeping the curated stars, filling to ~9. */
 if(window.EXTRA_TEAM_SEASONS&&Array.isArray(window.EXTRA_TEAM_SEASONS)){
-  const _seen=new Set(TEAM_SEASONS.map(t=>t.team+"|"+t.year));
-  window.EXTRA_TEAM_SEASONS.forEach(t=>{const k=t.team+"|"+t.year;if(!_seen.has(k)){_seen.add(k);TEAM_SEASONS.push(t);}});
+  const _byKey={};TEAM_SEASONS.forEach(t=>{_byKey[t.team+"|"+t.year]=t;});
+  window.EXTRA_TEAM_SEASONS.forEach(t=>{const k=t.team+"|"+t.year,cur=_byKey[k];
+    if(!cur){_byKey[k]=t;TEAM_SEASONS.push(t);}
+    else if(cur.players.length<8){const names=new Set(cur.players.map(p=>p.n));(t.players||[]).forEach(p=>{if(cur.players.length<9&&!names.has(p.n)){cur.players.push(p);names.add(p.n);}});}
+  });
 }
 const ALL_PLAYERS=[];
 TEAM_SEASONS.forEach(ts=>ts.players.forEach(p=>ALL_PLAYERS.push(Object.assign({},p,{tm:ts.team,yr:ts.year}))));
+/* Prime = each player's career-best season within the data (highest overall). */
+const PRIME={};ALL_PLAYERS.forEach(p=>{const c=PRIME[p.n];if(!c||p.imp>c.imp)PRIME[p.n]={ppg:p.ppg,rpg:p.rpg,apg:p.apg,imp:p.imp};});
 const NBA_TEAMS=[
   {name:"Boston Celtics",conf:"E",rating:96},{name:"Cleveland Cavaliers",conf:"E",rating:95},{name:"New York Knicks",conf:"E",rating:93},{name:"Milwaukee Bucks",conf:"E",rating:91},
   {name:"Orlando Magic",conf:"E",rating:90},{name:"Indiana Pacers",conf:"E",rating:89},{name:"Philadelphia 76ers",conf:"E",rating:88},{name:"Miami Heat",conf:"E",rating:87},
@@ -89,9 +95,10 @@ const POS_LABEL={PG:"PG",SG:"SG",SF:"SF",PF:"PF",C:"C","6":"6th"};
 const SPOT_XY={PG:{t:12,l:50},SG:{t:31,l:80},SF:{t:31,l:20},PF:{t:61,l:33},C:{t:65,l:67}};
 let roster={PG:null,SG:null,SF:null,PF:null,C:null,"6":null};
 let minYr,maxYr,conference="W";
-let spinning=false, currentTeam=null, rerollsLeft=1, started=false, movingSlot=null, pickSel=null, sortBy="rating", difficulty="normal", showRatings=true;
+let spinning=false, currentTeam=null, rerollsLeft=1, started=false, movingSlot=null, pickSel=null, sortBy="rating", difficulty="normal", showRatings=true, ratingMode="season";
 const DIFF_REROLLS={easy:3,normal:1,hard:0};
 function impShow(v){return showRatings?v:"?";}
+function primed(p){const o=Object.assign({},p);if(ratingMode==="prime"){const pr=PRIME[p.n];if(pr){o.ppg=pr.ppg;o.rpg=pr.rpg;o.apg=pr.apg;o.imp=pr.imp;}}return o;}
 let phase="draft", reg=null, po=null, poReveal=0, activeResTab="log", simMode="watch", runSeed=0, pbpMode="quick";
 let screen="setup", freePos=false;
 let lobby=null; // {seed,from,to,conf} when playing a shared multiplayer league
@@ -251,10 +258,17 @@ function buildPBP(gm){const r=mulberry32(hashSeed(runSeed,gm.oppName,gm.mine,gm.
 /* ============================================================ DRAFT / SETUP UI ============================================================ */
 function showScreen(n){screen=n;$("#setupScreen").style.display=n==="setup"?"":"none";$("#draftScreen").style.display=n==="draft"?"":"none";$("#resultsScreen").style.display=n==="results"?"":"none";const ls=$("#lobbyScreen");if(ls)ls.style.display=n==="lobby"?"":"none";const me=$("#mpEntryScreen");if(me)me.style.display=n==="mpentry"?"":"none";$("#restartRun").style.display=(n==="setup"||n==="lobby"||n==="mpentry")?"none":"";window.scrollTo({top:0,behavior:"smooth"});}
 function initControls(){
-  const from=$("#from"),to=$("#to");SEASON_YEARS.forEach(y=>{from.appendChild(new Option(y,y));to.appendChild(new Option(y,y));});
-  minYr=YMIN;maxYr=YMAX;from.value=minYr;to.value=maxYr;
-  from.onchange=()=>{if(lobby)return;minYr=+from.value;if(minYr>maxYr){maxYr=minYr;to.value=maxYr;}$("#poolCount").textContent=poolCount();};
-  to.onchange=()=>{if(lobby)return;maxYr=+to.value;if(maxYr<minYr){minYr=maxYr;from.value=minYr;}$("#poolCount").textContent=poolCount();};
+  const emin=$("#eraMin"),emax=$("#eraMax"),NY=SEASON_YEARS.length;
+  if(emin&&emax){emin.min=emax.min=0;emin.max=emax.max=NY-1;emin.step=emax.step=1;
+    var eraApply=function(){let a=+emin.value,b=+emax.value;if(a>b){const t=a;a=b;b=t;}minYr=SEASON_YEARS[a];maxYr=SEASON_YEARS[b];
+      const fl=$("#eraFromLbl"),tl=$("#eraToLbl"),cn=$("#eraCount"),fill=$("#eraFill");
+      if(fl)fl.textContent=minYr;if(tl)tl.textContent=maxYr;if(cn)cn.textContent=(b-a+1)+" of "+NY+" seasons";
+      if(fill){const lo=a/(NY-1)*100,hi=b/(NY-1)*100;fill.style.left=lo+"%";fill.style.width=(hi-lo)+"%";}
+      $("#poolCount").textContent=poolCount();};
+    var eraSet=function(fromYr,toYr,keepPreset){let a=SEASON_YEARS.findIndex(y=>y>=fromYr);if(a<0)a=0;let b=SEASON_YEARS.indexOf(toYr);if(b<0)b=NY-1;emin.value=a;emax.value=b;eraApply();if(!keepPreset)document.querySelectorAll("#eraPresets button").forEach(x=>x.classList.remove("on"));};
+    emin.oninput=()=>{if(+emin.value> +emax.value)emin.value=emax.value;eraApply();document.querySelectorAll("#eraPresets button").forEach(x=>x.classList.remove("on"));};
+    emax.oninput=()=>{if(+emax.value< +emin.value)emax.value=emin.value;eraApply();document.querySelectorAll("#eraPresets button").forEach(x=>x.classList.remove("on"));};
+    emin.value=0;emax.value=NY-1;eraApply();window._eraSet=eraSet;}
   document.querySelectorAll("#confToggle button").forEach(b=>{b.onclick=()=>{if(lobby)return;conference=b.dataset.c;document.querySelectorAll("#confToggle button").forEach(x=>x.classList.toggle("on",x===b));};});
   document.querySelectorAll("#freeToggle button").forEach(b=>{b.onclick=()=>{freePos=b.dataset.f==="1";document.querySelectorAll("#freeToggle button").forEach(x=>x.classList.toggle("on",x===b));};});
   document.querySelectorAll("#simmode button").forEach(b=>{b.onclick=()=>{simMode=b.dataset.m;document.querySelectorAll("#simmode button").forEach(x=>x.classList.toggle("on",x===b));};});
@@ -263,8 +277,9 @@ function initControls(){
   $("#backToDraft").onclick=()=>{showScreen("draft");renderAll();};
   const _db=$("#dailyBtn");if(_db)_db.onclick=startDaily;
   const _sc=$("#shareCard");if(_sc)_sc.onclick=shareCard;
-  const _era={all:[YMIN,YMAX],"2000":[2000,YMAX],"2010":[2010,YMAX],"2016":[2016,YMAX]};
-  document.querySelectorAll("#eraPresets button").forEach(b=>{b.onclick=()=>{if(lobby)return;const r=_era[b.dataset.era];minYr=Math.max(YMIN,r[0]);maxYr=Math.min(YMAX,r[1]);from.value=minYr;to.value=maxYr;document.querySelectorAll("#eraPresets button").forEach(x=>x.classList.toggle("on",x===b));$("#poolCount").textContent=poolCount();};});
+  const _era={all:[SEASON_YEARS[0],SEASON_YEARS[SEASON_YEARS.length-1]],"2000":[2000,SEASON_YEARS[SEASON_YEARS.length-1]],"2010":[2010,SEASON_YEARS[SEASON_YEARS.length-1]],"2016":[2016,SEASON_YEARS[SEASON_YEARS.length-1]]};
+  document.querySelectorAll("#eraPresets button").forEach(b=>{b.onclick=()=>{if(lobby)return;const r=_era[b.dataset.era];if(window._eraSet)window._eraSet(r[0],r[1],true);document.querySelectorAll("#eraPresets button").forEach(x=>x.classList.toggle("on",x===b));};});
+  document.querySelectorAll("#rmodeToggle button").forEach(b=>{b.onclick=()=>{ratingMode=b.dataset.m;document.querySelectorAll("#rmodeToggle button").forEach(x=>x.classList.toggle("on",x===b));};});
   const _dn={easy:"Easy · 3 rerolls",normal:"Normal · 1 reroll",hard:"Hard · no rerolls"};
   document.querySelectorAll("#diffToggle button").forEach(b=>{b.onclick=()=>{difficulty=b.dataset.d;document.querySelectorAll("#diffToggle button").forEach(x=>x.classList.toggle("on",x===b));const dn=$("#diffNote");if(dn)dn.textContent=_dn[difficulty];};});
   document.querySelectorAll("#ratingsToggle button").forEach(b=>{b.onclick=()=>{showRatings=b.dataset.r==="1";document.querySelectorAll("#ratingsToggle button").forEach(x=>x.classList.toggle("on",x===b));};});
@@ -374,7 +389,7 @@ function renderPicker(){
       const sel=(pickSel===p.n&&draftable);
       const placeIn=sel?`<div class="placein"><div class="pil">Place in (${opens.length})</div><div class="opts">`+opens.map(s=>`<button class="pi-btn${s==="6"?" six":""}" data-slot="${s}"><span class="code">${s==="6"?"6th":s}</span><span class="full">${POS_FULL[s]}</span></button>`).join("")+`</div></div>`:"";
       return `<div class="pcard${sel?" sel":""}${draftable?"":" dis"}" data-n="${encodeURIComponent(p.n)}" data-draftable="${draftable?1:0}">
-        <div class="prow"><div class="badge ${roleClass(p.pos)}">${impShow(p.imp)}</div><div class="pinfo"><div class="n">${p.n}</div><div class="s">${p.ppg.toFixed(1)} PPG · ${p.rpg.toFixed(1)} RPG · ${p.apg.toFixed(1)} APG${taken?" · drafted":(draftable?"":" · no open slot")}</div></div><div class="ptags">${tags}</div></div>${placeIn}</div>`;}).join("");
+        <div class="prow"><div class="badge ${roleClass(p.pos)}">${impShow(primed(p).imp)}</div><div class="pinfo"><div class="n">${p.n}</div><div class="s">${primed(p).ppg.toFixed(1)} PPG · ${primed(p).rpg.toFixed(1)} RPG · ${primed(p).apg.toFixed(1)} APG${taken?" · drafted":(draftable?"":" · no open slot")}</div></div><div class="ptags">${tags}</div></div>${placeIn}</div>`;}).join("");
     wrap.innerHTML=`<div class="sqhead"><span class="chip">Squad spun</span><span class="slots"><b>${needSlots()}</b> slots left</span>
         <button class="rerollbtn" id="rerollBtn" ${rerollsLeft>0?"":"disabled"}>&#8635; Re-roll${rerollsLeft>0?` (${rerollsLeft} left)`:" — none"}</button></div>
       <div class="sqteam">${currentTeam.team} <span class="yr">${currentTeam.year-1}/${String(currentTeam.year).slice(2)}</span></div>
@@ -397,7 +412,7 @@ function doSpin(){if(!started){started=true;applyLock();}
   const rt=$("#reelTeam"),ry=$("#reelYr");const total=22;let i=0;
   (function tick(){i++;const last=i>=total;const tt=last?finalTeam:cyc[Math.floor(Math.random()*cyc.length)];if(rt)rt.textContent=tt.team;if(ry)ry.textContent=`${tt.year-1}/${String(tt.year).slice(2)}`;if(last){const reel=$("#reel");if(reel){reel.classList.remove("spinning");reel.classList.add("landed");}setTimeout(()=>{spinning=false;currentTeam=finalTeam;renderPicker();},600);return;}setTimeout(tick,32+i*i*0.85);})();
 }
-function draftPlayer(name,slot){const p=currentTeam.players.find(x=>x.n===name);if(!p||roster[slot])return;roster[slot]=Object.assign({},p,{tm:currentTeam.team,yr:currentTeam.year});currentTeam=null;pickSel=null;renderAll();}
+function draftPlayer(name,slot){const p=currentTeam.players.find(x=>x.n===name);if(!p||roster[slot])return;roster[slot]=primed(Object.assign({},p,{tm:currentTeam.team,yr:currentTeam.year}));currentTeam=null;pickSel=null;renderAll();}
 function renderAll(){$("#poolCount").textContent=poolCount();$("#rrCount").textContent=rerollsLeft;renderCourt();renderPicker();}
 
 /* ============================================================ SIM FLOW ============================================================ */
@@ -541,7 +556,7 @@ function mpHeader(code){mpCode=code||mpCode;const c=$("#mpCodeShow");if(c)c.text
 function mpJoin(code){mpCode=code;lobby={code:code};
   mpAuth.onAuthStateChanged(user=>{if(!user||mpJoined)return;mpJoined=true;mpUid=user.uid;mpRoom=mpDb.ref("rooms/"+mpCode);
     mpRoom.child("settings").once("value").then(s=>{
-      if(!s.exists()){const seed=(Math.floor(Math.random()*4294967296))>>>0;mpRoom.child("settings").set({seed:seed,eraFrom:YMIN,eraTo:YMAX,conf:"W",free:false,hostId:mpUid,status:"waiting",createdAt:Date.now()}).catch(()=>{});track("lobby_created",{code:mpCode});}else{track("lobby_joined",{code:mpCode});}
+      if(!s.exists()){const seed=(Math.floor(Math.random()*4294967296))>>>0;mpRoom.child("settings").set({seed:seed,eraFrom:YMIN,eraTo:YMAX,conf:"W",free:false,prime:false,hostId:mpUid,status:"waiting",createdAt:Date.now()}).catch(()=>{});track("lobby_created",{code:mpCode});}else{track("lobby_joined",{code:mpCode});}
       const meRef=mpRoom.child("players/"+mpUid);
       meRef.update({name:(window._lbName||"Player"),ready:false,joinedAt:Date.now()}).catch(()=>{});
       meRef.onDisconnect().remove();
@@ -558,7 +573,7 @@ function renderLobbyScreen(room,note){const body=$("#lobbyBody");if(!body)return
   const ids=Object.keys(players).sort((a,b)=>(players[a].joinedAt||0)-(players[b].joinedAt||0));
   const allReady=ids.length>0&&ids.every(id=>players[id].ready);
   const me=players[mpUid]||{};
-  const free=!!settings.free,conf=settings.conf||"W",eFrom=settings.eraFrom||YMIN,eTo=settings.eraTo||YMAX;
+  const free=!!settings.free,conf=settings.conf||"W",eFrom=settings.eraFrom||YMIN,eTo=settings.eraTo||YMAX,prime=!!settings.prime;
   const eraKey=(ERA_PRESETS.find(p=>p.from===eFrom&&p.to===eTo)||{}).k||"custom";
   const list=ids.map(id=>{const p=players[id],you=id===mpUid,host=id===settings.hostId;
     return `<div class="mp-p${you?" me":""}"><span class="mp-nm">${mpEsc(p.name||"Player")}${host?' <span class="mp-hosttag">host</span>':""}${you?' <span class="mp-youtag">you</span>':""}</span><span class="mp-rd ${p.ready?"on":""}">${p.ready?"Ready":"Not ready"}</span></div>`;}).join("");
@@ -566,8 +581,9 @@ function renderLobbyScreen(room,note){const body=$("#lobbyBody");if(!body)return
   if(mpIsHost){settingsHtml=`<div class="mp-sec">Room settings <span>· you're the host</span></div>
     <div class="mp-setrow"><span class="mp-slbl">Era</span><div class="conf-toggle mp-era">${ERA_PRESETS.map(p=>`<button data-era="${p.k}" class="${eraKey===p.k?"on":""}">${p.label}</button>`).join("")}</div></div>
     <div class="mp-setrow"><span class="mp-slbl">Conference</span><div class="conf-toggle" id="mpConf"><button data-c="E" class="${conf==="E"?"on":""}">Eastern</button><button data-c="W" class="${conf==="W"?"on":""}">Western</button></div></div>
-    <div class="mp-setrow"><span class="mp-slbl">Positioning</span><div class="conf-toggle" id="mpPos"><button data-f="0" class="${free?"":"on"}">By position</button><button data-f="1" class="${free?"on":""}">Free</button></div></div>`;}
-  else{settingsHtml=`<div class="mp-sec">Room settings <span>· set by host</span></div><div class="mp-note" style="text-align:left;margin:0 0 4px">Era: <b>${eFrom}\u2013${eTo}</b> \u00b7 ${conf==="E"?"Eastern":"Western"} \u00b7 ${free?"Free positioning":"By position"}</div>`;}
+    <div class="mp-setrow"><span class="mp-slbl">Positioning</span><div class="conf-toggle" id="mpPos"><button data-f="0" class="${free?"":"on"}">By position</button><button data-f="1" class="${free?"on":""}">Free</button></div></div>
+    <div class="mp-setrow"><span class="mp-slbl">Player ratings</span><div class="conf-toggle" id="mpRmode"><button data-m="season" class="${prime?"":"on"}">Season</button><button data-m="prime" class="${prime?"on":""}">Prime</button></div></div>`;}
+  else{settingsHtml=`<div class="mp-sec">Room settings <span>· set by host</span></div><div class="mp-note" style="text-align:left;margin:0 0 4px">Era: <b>${eFrom}\u2013${eTo}</b> \u00b7 ${conf==="E"?"Eastern":"Western"} \u00b7 ${free?"Free positioning":"By position"} \u00b7 ${prime?"Prime ratings":"Season ratings"}</div>`;}
   body.innerHTML=`<div class="mp-sec">Players (${ids.length})</div><div class="mp-players">${list||'<div class="mp-note">Waiting for players\u2026</div>'}</div>
     <div class="mp-namerow"><label>Your name</label><input id="mpName" class="mp-in" maxlength="18" value="${mpEsc(me.name||window._lbName||"")}"></div>
     ${settingsHtml}
@@ -577,6 +593,7 @@ function renderLobbyScreen(room,note){const body=$("#lobbyBody");if(!body)return
   const era=$(".mp-era");if(era)era.querySelectorAll("button").forEach(b=>b.onclick=()=>{const p=ERA_PRESETS.find(x=>x.k===b.dataset.era);if(p&&mpRoom)mpRoom.child("settings").update({eraFrom:p.from,eraTo:p.to});});
   const cf=$("#mpConf");if(cf)cf.querySelectorAll("button").forEach(b=>b.onclick=()=>{if(mpRoom)mpRoom.child("settings/conf").set(b.dataset.c);});
   const pos=$("#mpPos");if(pos)pos.querySelectorAll("button").forEach(b=>b.onclick=()=>{if(mpRoom)mpRoom.child("settings/free").set(b.dataset.f==="1");});
+  const rm=$("#mpRmode");if(rm)rm.querySelectorAll("button").forEach(b=>b.onclick=()=>{if(mpRoom)mpRoom.child("settings/prime").set(b.dataset.m==="prime");});
   const rb=$("#mpReady");if(rb)rb.onclick=()=>{if(mpRoom)mpRoom.child("players/"+mpUid+"/ready").set(!me.ready);};
   const sb=$("#mpStart");if(sb)sb.onclick=()=>{if(allReady&&mpRoom)mpRoom.child("settings/status").set("started");};
 }
@@ -604,7 +621,7 @@ function mpLeave(){try{if(mpRoom){mpRoom.off();mpRoom.child("players/"+mpUid).re
 /* ---- Phase 2: shared league — lobby teams become extension franchises ---- */
 function mpRosterArr(r){if(!r)return [];const a=Array.isArray(r)?r.slice():Object.keys(r).sort((x,y)=>x-y).map(k=>r[k]);const ord=["PG","SG","SF","PF","C","6"];return a.slice().sort((p,q)=>ord.indexOf(p.slot)-ord.indexOf(q.slot));}
 function mpPublishRoster(){if(!mpRoom||!mpUid||!rosterFull())return;const order=["PG","SG","SF","PF","C","6"];const r=order.map(k=>{const p=roster[k];return {slot:k,n:p.n,pos:p.pos,ppg:p.ppg,rpg:p.rpg,apg:p.apg,imp:p.imp,tm:p.tm,yr:p.yr};});mpRoom.child("players/"+mpUid).update({roster:r,drafted:true}).catch(()=>{});}
-function autoFillRoster(){const taken=takenNames();["PG","SG","SF","PF","C","6"].forEach(k=>{if(roster[k])return;const cands=ALL_PLAYERS.filter(p=>inRange(p.yr)&&!taken.has(p.n)&&(k==="6"||freePos||eligPositions(p).includes(k)));if(!cands.length)return;const pick=cands[Math.floor(Math.random()*cands.length)];roster[k]=Object.assign({},pick);taken.add(pick.n);});currentTeam=null;pickSel=null;renderAll();}
+function autoFillRoster(){const taken=takenNames();["PG","SG","SF","PF","C","6"].forEach(k=>{if(roster[k])return;const cands=ALL_PLAYERS.filter(p=>inRange(p.yr)&&!taken.has(p.n)&&(k==="6"||freePos||eligPositions(p).includes(k)));if(!cands.length)return;const pick=cands[Math.floor(Math.random()*cands.length)];roster[k]=primed(Object.assign({},pick));taken.add(pick.n);});currentTeam=null;pickSel=null;renderAll();}
 function mpFmt(s){s=Math.max(0,s);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");}
 function mpStartTimer(){if(!mpRoom)return;clearInterval(mpTimer);mpTimeLeft=DRAFT_SECONDS;const el=$("#draftTimer");if(el)el.style.display="";mpTickTimer();mpTimer=setInterval(mpTickTimer,1000);}
 function mpTickTimer(){const el=$("#draftTimer");
@@ -655,7 +672,7 @@ function mpUpdateDraftUI(room){if(!mpRoom||screen!=="draft")return;const sim=$("
 }
 function mpOnRoom(room){if(!room)return;mpRoomData=room;const s=room.settings||{},st=s.status;
   if(s.seed!=null){lobby=lobby||{code:mpCode};lobby.seed=s.seed>>>0;lobby.from=s.eraFrom;lobby.to=s.eraTo;lobby.conf=s.conf;lobby.code=mpCode;
-    minYr=s.eraFrom||YMIN;maxYr=s.eraTo||YMAX;conference=s.conf||"W";freePos=!!s.free;}
+    minYr=s.eraFrom||YMIN;maxYr=s.eraTo||YMAX;conference=s.conf||"W";freePos=!!s.free;ratingMode=s.prime?"prime":"season";}
   if(st==="started"&&screen==="lobby"&&!mpStarted){mpStarted=true;startDraft();mpStartTimer();}
   if(st==="running"&&!mpRan){clearInterval(mpTimer);tryRunMP(room);}
   if(screen==="lobby")renderLobbyScreen(room);else if(screen==="draft")mpUpdateDraftUI(room);
