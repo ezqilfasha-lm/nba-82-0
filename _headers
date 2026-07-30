@@ -1,0 +1,11 @@
+# Force the browser to revalidate code and HTML on every load, so a new deploy
+# always takes effect without a hard refresh. (Netlify reads this file from the
+# publish root.) Images/icons keep normal caching.
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+/*.js
+  Cache-Control: public, max-age=0, must-revalidate
+/*.css
+  Cache-Control: public, max-age=0, must-revalidate
+/*.webmanifest
+  Cache-Control: public, max-age=0, must-revalidate
