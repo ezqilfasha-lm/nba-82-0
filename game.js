@@ -380,8 +380,8 @@ function renderPicker(){
   if(currentTeam){
     const t=takenNames();
     let list=currentTeam.players.map(p=>Object.assign({},p));
-    if(sortBy==="rating")list.sort((a,b)=>b.imp-a.imp);
-    else if(sortBy==="position"){const ord={PG:0,SG:1,SF:2,PF:3,C:4};list.sort((a,b)=>ord[a.pos]-ord[b.pos]||b.imp-a.imp);}
+    if(sortBy==="rating")list.sort((a,b)=>primed(b).imp-primed(a).imp);
+    else if(sortBy==="position"){const ord={PG:0,SG:1,SF:2,PF:3,C:4};list.sort((a,b)=>ord[a.pos]-ord[b.pos]||primed(b).imp-primed(a).imp);}
     else list.sort((a,b)=>a.n.split(" ").slice(-1)[0].localeCompare(b.n.split(" ").slice(-1)[0]));
     const cards=list.map(p=>{
       const taken=t.has(p.n);const opens=taken?[]:openEligibleSlots(p);const draftable=!taken&&opens.length;
